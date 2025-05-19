@@ -4,7 +4,7 @@ from scripts.upload.supabase_client import supabase
 def upload_dataframe(df, table_name, batch_size=500):
     df = df.copy()
 
-    # Convert datetime to string for JSON serialization
+    # Convert datetime to string for Supabase JSON compatibility
     for col in df.select_dtypes(include=["datetime64[ns]"]).columns:
         df[col] = df[col].astype(str)
 
@@ -19,34 +19,35 @@ def upload_dataframe(df, table_name, batch_size=500):
     print(f"✅ Finished uploading to {table_name}: {total} rows")
 
 
-# === Get store_id mapping from Supabase using pc_number ===
-store_map = supabase.table("stores").select("store_id, pc_number").execute()
-store_lookup = {str(entry["pc_number"]): entry["store_id"] for entry in store_map.data}
-
-# === Upload Usage Overview ===
+# === Upload CML Usage Overview ===
 usage_df = pd.read_excel("data/processed/cml_usage.xlsx")
 
-# Map pc_number to store_id
-usage_df["store_id"] = usage_df["store_id"].astype(str).map(store_lookup)
+# Ensure pc_number exists and is string
+if "pc_number" not in usage_df.columns:
+    raise ValueError("❌ 'pc_number' column missing in cml_usage.xlsx")
 
-# Reorder and keep required columns
+usage_df["pc_number"] = usage_df["pc_number"].astype(str)
+
+# Select and reorder columns
 usage_df = usage_df[[
-    "store_id", "date", "product_type",
+    "pc_number", "date", "product_type",
     "ordered_qty", "wasted_qty", "waste_percent",
     "waste_dollar", "expected_consumption"
 ]]
 
 upload_dataframe(usage_df, "usage_overview")
 
-# === Upload Donut Sales ===
+
+# === Upload Donut Sales Hourly ===
 sales_df = pd.read_excel("data/processed/donut_sales.xlsx")
 
-# Map pc_number to store_id
-sales_df["store_id"] = sales_df["store_id"].astype(str).map(store_lookup)
+if "pc_number" not in sales_df.columns:
+    raise ValueError("❌ 'pc_number' column missing in donut_sales.xlsx")
 
-# Reorder and keep required columns
+sales_df["pc_number"] = sales_df["pc_number"].astype(str)
+
 sales_df = sales_df[[
-    "store_id", "sale_datetime", "product_name",
+    "pc_number", "sale_datetime", "product_name",
     "product_type", "quantity", "value"
 ]]
 

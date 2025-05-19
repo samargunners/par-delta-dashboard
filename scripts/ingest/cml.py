@@ -1,5 +1,3 @@
-# Generate `scripts/ingest/cml.py` to clean and transform CML (SupplyIt) data
-
 import pandas as pd
 from pathlib import Path
 
@@ -17,14 +15,14 @@ usage_df = pd.read_excel(usage_path)
 
 # Standardize column names
 usage_df.columns = [
-    "store_name", "store_id", "date", "product_type", 
+    "store_name", "pc_number", "date", "product_type", 
     "ordered_qty", "wasted_qty", "waste_percent", 
     "waste_dollar", "expected_consumption"
 ]
 
 # Format types
 usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
-usage_df["store_id"] = usage_df["store_id"].astype(str)
+usage_df["pc_number"] = usage_df["pc_number"].astype(str)
 
 # Save cleaned version
 usage_df.to_excel(processed_path / "cml_usage.xlsx", index=False)
@@ -35,17 +33,17 @@ sales_df = pd.read_excel(sales_path)
 
 # Standardize column names
 sales_df.columns = [
-    "date", "time", "store_id", 
+    "date", "time", "pc_number", 
     "product_name", "product_type", "quantity", "value"
 ]
 
 # Format datetime and types
 sales_df["sale_datetime"] = pd.to_datetime(sales_df["date"].astype(str) + " " + sales_df["time"].astype(str))
-sales_df["store_id"] = sales_df["store_id"].astype(str)
+sales_df["pc_number"] = sales_df["pc_number"].astype(str)
 
 # Reorder and drop original date/time
 sales_df = sales_df[[
-    "store_id", "sale_datetime", "product_name", 
+    "pc_number", "sale_datetime", "product_name", 
     "product_type", "quantity", "value"
 ]]
 

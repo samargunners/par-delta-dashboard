@@ -39,6 +39,9 @@ sched_df["date"] = pd.to_datetime(sched_df["date"])
 clock_df["employee_id"] = clock_df["employee_id"].astype(str)
 sched_df["employee_id"] = sched_df["employee_id"].astype(str)
 
+# Keep only the earliest clock-in for each employee on a given date
+clock_df = clock_df.sort_values(by=["employee_id", "date", "time_in"]).drop_duplicates(subset=["employee_id", "date"], keep="first")
+
 if location_filter != "All":
     clock_df = clock_df[clock_df["pc_number"] == location_filter]
 

@@ -16,9 +16,12 @@ clockins_df["date"] = pd.to_datetime(clockins_df["date"]).dt.date
 clockins_df = clockins_df.dropna(subset=["pc_number"])
 clockins_df["pc_number"] = clockins_df["pc_number"].astype(float).astype(int).astype(str)
 
+# Replace None, NaN, and empty strings with 0
+clockins_df = clockins_df.replace(r'^\s*$', 0, regex=True)  # Replace blank strings with 0
+clockins_df = clockins_df.fillna(0)  # Replace NaN/None with 0
 
-clockins_df.to_excel(processed_path / "employee_clockins.xlsx", index=False)
-print("✅ Saved cleaned clockins to employee_clockins.xlsx")
+clockins_df.to_excel(processed_path / "employee_clockin.xlsx", index=False)
+print("✅ Saved cleaned clockins to employee_clockin.xlsx")
 
 # === SCHEDULES ===
 schedules_df = pd.read_excel(raw_path / "cleaned_all_schedules.xlsx", skiprows=1)

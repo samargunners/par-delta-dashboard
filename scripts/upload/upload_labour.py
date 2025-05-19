@@ -14,6 +14,11 @@ def upload_dataframe(df, table_name):
         if df[col].dtype == "object":
             df[col] = df[col].replace(r'^\\s*$', None, regex=True)
 
+    # Replace blank strings in numeric columns with None
+    for col in df.columns:
+        if pd.api.types.is_numeric_dtype(df[col]):
+            df[col] = pd.to_numeric(df[col], errors='coerce')  # Convert invalid strings to NaN
+
     df = df.where(pd.notnull(df), None)
 
     data = df.to_dict(orient="records")
@@ -32,20 +37,25 @@ def upload_dataframe(df, table_name):
         except Exception as e:
             print(f"❌ Error upserting record {i+1}: {e}")
             print("⛔ Record content:", record)
-            break
+            continue  # Skip to the next record
 
 # === Upload Employee Clockins (using pc_number)
-clockins_df = pd.read_excel("data/processed/employee_clockins.xlsx")
+clockins_df = pd.read_excel("data/processed/employee_clockin.xlsx")
 clockins_df.columns = clockins_df.columns.str.strip().str.lower().str.replace(" ", "_")
 clockins_df["pc_number"] = clockins_df["pc_number"].astype(str)
 
+# Ensure time_in and time_out are properly formatted as HH:MM:SS strings
+clockins_df["time_in"] = pd.to_datetime(clockins_df["time_in"], format="%H:%M", errors="coerce").dt.strftime("%H:%M:%S")
+clockins_df["time_out"] = pd.to_datetime(clockins_df["time_out"], format="%H:%M", errors="coerce").dt.strftime("%H:%M:%S")
+
+# Select and upload the required columns
 clockins_df = clockins_df[[
     "employee_id", "employee_name", "pc_number", "date", 
     "time_in", "time_out", "total_time", "rate", 
     "regular_hours", "regular_wages", 
     "ot_hours", "ot_wages", "total_wages"
 ]]
-upload_dataframe(clockins_df, "employee_clockins")
+upload_dataframe(clockins_df, "employee_clockin")
 
 # === Upload Employee Schedules
 schedules_df = pd.read_excel("data/processed/employee_schedules.xlsx")

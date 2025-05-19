@@ -25,7 +25,7 @@ def load_data(table):
     df.columns = [str(col).strip().lower() for col in df.columns]
     return df
 
-clock_df = load_data("employee_clockins")
+clock_df = load_data("employee_clockin")
 sched_df = load_data("employee_schedules")
 
 # --- Validate ---

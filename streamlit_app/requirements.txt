@@ -2,7 +2,5 @@ streamlit
 pandas
 supabase
 numpy
-pandas
 plotly
 plotly_express
-plotly.graph_objects

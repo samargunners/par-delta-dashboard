@@ -133,11 +133,17 @@ st.plotly_chart(fig, use_container_width=True)
 st.subheader("🔍 Search Employee Clock-in Records")
 search_name = st.text_input("Search by Employee Name (partial or full):").strip().lower()
 
-# Prepare a DataFrame with all relevant info
-search_df = clock_df.copy()
+# Merge clock-in and schedule info for search
+search_df = pd.merge(
+    clock_df,
+    sched_df[["employee_id", "date", "start_time", "end_time"]],
+    on=["employee_id", "date"],
+    how="left"
+)
 search_df["date"] = search_df["date"].dt.strftime("%Y-%m-%d")
-search_df = search_df[["employee_id", "employee_name", "date","start_time","end_time", "time_in", "time_out", "pc_number"]]
-search_df = search_df.rename(columns={
+search_df = search_df[[
+    "employee_id", "employee_name", "date", "start_time", "end_time", "time_in", "time_out", "pc_number"
+]].rename(columns={
     "pc_number": "location",
     "time_in": "clock_in",
     "time_out": "clock_out"

@@ -70,6 +70,9 @@ st.write("sales_summary sample:", sales_summary[["date", "pc_number", "SalesQty"
 st.write("usage_donuts types:", usage_donuts.dtypes)
 st.write("sales_summary types:", sales_summary.dtypes)
 
+st.write("Donut Sales Hourly - Min Date:", sales_df["date"].min())
+st.write("Donut Sales Hourly - Max Date:", sales_df["date"].max())
+
 # --- Merge & Calculate ---
 merged = pd.merge(usage_donuts, sales_summary, on=["date", "pc_number"], how="left")
 merged["SalesQty"] = merged["SalesQty"].fillna(0)

@@ -76,7 +76,7 @@ st.dataframe(summary)
 # --- Charts ---
 # Chart 1: Top 10 by absolute Variance Qty (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by Quantity")
-top_qty_variance = df.loc[df["qty_variance"].abs().sort_values(ascending=False).index].head(10)
+top_qty_variance = df.reindex(df["qty_variance"].abs().sort_values(ascending=False).index).head(10)
 top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=False)
 if not top_qty_variance.empty:
     st.bar_chart(top_qty_variance.set_index("product_name")["qty_variance"].rename("Variance Qty"))
@@ -85,7 +85,7 @@ else:
 
 # Chart 2: Top 10 by absolute Variance $ (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by $")
-top_value_variance = df.loc[df["variance"].abs().sort_values(ascending=False).index].head(10)
+top_value_variance = df.reindex(df["variance"].abs().sort_values(ascending=False).index).head(10)
 top_value_variance = top_value_variance.sort_values("variance", ascending=False)
 if not top_value_variance.empty:
     st.bar_chart(top_value_variance.set_index("product_name")["variance"].rename("Variance $"))

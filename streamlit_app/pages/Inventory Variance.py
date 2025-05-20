@@ -38,11 +38,10 @@ if reporting_period != "All":
 df["Theoretical Cost Variance"] = df["theoretical_value"] - df["cogs"]
 df["Unit Gap"] = df["theoretical_qty"] - df["units_sold"]
 
-st.write("Columns in DataFrame:", df.columns.tolist())
-
 
 # --- Summary Table ---
 summary = df[[
+    "pc_number",
     "reporting_period",
     "product_name",
     "qty_variance",
@@ -50,7 +49,7 @@ summary = df[[
     "units_sold",
     "cogs",
     "purchases_qty",
-    "purchase_value"
+    "purchases_value"
 ]].rename(columns={
     "qty_variance": "Variance Qty",
     "variance": "Variance $",

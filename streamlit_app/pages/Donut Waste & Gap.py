@@ -56,11 +56,14 @@ if date_range and len(date_range) == 2:
     donut_sales = donut_sales[(donut_sales["date"] >= start_date) & (donut_sales["date"] <= end_date)]
 
 # --- Ensure types match before merge ---
-sales_summary["date"] = pd.to_datetime(sales_summary["date"]).dt.date
+usage_donuts["pc_number"] = usage_donuts["pc_number"].astype(str).str.strip().str.zfill(6)
+sales_summary["pc_number"] = sales_summary["pc_number"].astype(str).str.strip().str.zfill(6)
 usage_donuts["date"] = pd.to_datetime(usage_donuts["date"]).dt.date
+sales_summary["date"] = pd.to_datetime(sales_summary["date"]).dt.date
 
-sales_summary["pc_number"] = sales_summary["pc_number"].astype(str).str.zfill(6)
-usage_donuts["pc_number"] = usage_donuts["pc_number"].astype(str).str.zfill(6)
+# Print unique keys for debugging
+st.write("usage_donuts unique keys:", usage_donuts[['date', 'pc_number']].drop_duplicates())
+st.write("sales_summary unique keys:", sales_summary[['date', 'pc_number']].drop_duplicates())
 
 st.write("usage_donuts sample:", usage_donuts[["date", "pc_number"]].head())
 st.write("sales_summary sample:", sales_summary[["date", "pc_number", "SalesQty"]].head())

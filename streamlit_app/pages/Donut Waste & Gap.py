@@ -75,21 +75,6 @@ merged["CalculatedWaste"] = merged["ordered_qty"] - merged["SalesQty"]
 merged["Gap"] = merged["CalculatedWaste"] - merged["wasted_qty"]
 merged["DonutCost"] = merged["wasted_qty"] * 0.36
 
-# --- Debug Output ---
-if st.checkbox("🔧 Show Debug Info"):
-    st.write("📅 **Date Ranges**")
-    st.write("Sales Dates Range:", donut_sales["date"].min(), "to", donut_sales["date"].max())
-    st.write("Usage Dates Range:", usage_donuts["date"].min(), "to", usage_donuts["date"].max())
-    st.write("🏪 **PC Numbers in Sales Data:**", sorted(donut_sales["pc_number"].unique()))
-    st.write("🏪 **PC Numbers in Usage Data:**", sorted(usage_donuts["pc_number"].unique()))
-    st.write("🔍 **Sample of Merged Data (SalesQty):**")
-    st.write(merged[["date", "pc_number", "SalesQty"]].head(10))
-    st.write("🧾 Columns in sales_df:", sales_df.columns.tolist())
-    st.write("📌 Sample rows from sales_df:")
-    st.dataframe(sales_df.head(5))
-    st.write("📦 Raw Supabase API Response Metadata:")
-    st.json(raw_sales_data.__dict__)
-
 # --- Table Output ---
 st.subheader("📋 Donut Usage Summary")
 st.dataframe(merged)

@@ -28,16 +28,17 @@ usage_df = load_data("usage_overview")
 
 # --- Preprocessing ---
 sales_df["date"] = pd.to_datetime(sales_df["date"]).dt.date
+sales_df["pc_number"] = sales_df["pc_number"].astype(str)
+usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
+usage_df["pc_number"] = usage_df["pc_number"].astype(str)
+
 sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.time  # Adjust format if needed
 sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.hour
-sales_df["pc_number"] = sales_df["pc_number"].astype(str)
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
 donut_sales = sales_df[sales_df["product_type"].isin(["donut", "donuts"])]
 
 sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
 
-usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
-usage_df["pc_number"] = usage_df["pc_number"].astype(str)
 usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
 usage_donuts = usage_df[usage_df["product_type"].isin(["donut", "donuts"])]
 
@@ -53,6 +54,12 @@ if date_range and len(date_range) == 2:
     usage_donuts = usage_donuts[(usage_donuts["date"] >= start_date) & (usage_donuts["date"] <= end_date)]
     sales_summary = sales_summary[(sales_summary["date"] >= start_date) & (sales_summary["date"] <= end_date)]
     donut_sales = donut_sales[(donut_sales["date"] >= start_date) & (donut_sales["date"] <= end_date)]
+
+# --- Ensure types match before merge ---
+sales_summary["date"] = pd.to_datetime(sales_summary["date"]).dt.date
+sales_summary["pc_number"] = sales_summary["pc_number"].astype(str)
+usage_donuts["date"] = pd.to_datetime(usage_donuts["date"]).dt.date
+usage_donuts["pc_number"] = usage_donuts["pc_number"].astype(str)
 
 # --- Merge & Calculate ---
 merged = pd.merge(usage_donuts, sales_summary, on=["date", "pc_number"], how="left")

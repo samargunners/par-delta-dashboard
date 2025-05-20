@@ -34,7 +34,7 @@ sales_df["pc_number"] = sales_df["pc_number"].astype(str)
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
 donut_sales = sales_df[sales_df["product_type"] == "donut"]
 
-sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
+sales_summary = donut_sales.groupby(["pc_number", "date"]).agg(SalesQty=("quantity", "sum")).reset_index()
 
 usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
 usage_df["pc_number"] = usage_df["pc_number"].astype(str)

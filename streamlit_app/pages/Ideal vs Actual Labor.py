@@ -44,12 +44,20 @@ daily_summary = df.groupby("date").agg(
     sales_value=("sales_value", "sum")
 ).reset_index()
 
+# --- Calculate Actual Labor % of Sales ---
+daily_summary["actual_labor_pct_sales"] = (
+    daily_summary["actual_labor"] / daily_summary["sales_value"]
+) * 100
+
 # --- Charts ---
 st.subheader("🕐 Labor Hours Comparison")
 st.line_chart(daily_summary.set_index("date")[["ideal_hours", "scheduled_hours", "actual_hours"]])
 
 st.subheader("💰 Sales vs Labor Cost")
 st.line_chart(daily_summary.set_index("date")[["forecasted_sales", "sales_value", "actual_labor"]])
+
+st.subheader("📊 Actual Labor % of Sales")
+st.line_chart(daily_summary.set_index("date")[["actual_labor_pct_sales"]])
 
 # --- Raw Data Table ---
 st.subheader("📋 Daily Summary Table")

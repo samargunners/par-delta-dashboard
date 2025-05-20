@@ -37,7 +37,8 @@ usage_df = pd.read_excel("data/processed/cml_usage.xlsx")
 if "pc_number" not in usage_df.columns:
     raise ValueError("❌ 'pc_number' column missing in cml_usage.xlsx")
 
-usage_df["pc_number"] = usage_df["pc_number"].astype(int)
+usage_df["pc_number"] = usage_df["pc_number"].astype(str)  # Ensure varchar
+usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.strftime("%Y-%m-%d")  # Ensure string date
 
 usage_df = usage_df[[
     "pc_number", "date", "product_type",
@@ -54,10 +55,9 @@ sales_df = pd.read_excel("data/processed/donut_sales.xlsx")
 if "pc_number" not in sales_df.columns:
     raise ValueError("❌ 'pc_number' column missing in donut_sales.xlsx")
 
-sales_df["pc_number"] = sales_df["pc_number"].astype(int)
-
+sales_df["pc_number"] = sales_df["pc_number"].astype(str)  # Ensure varchar for consistency
 sales_df["sale_datetime"] = pd.to_datetime(sales_df["sale_datetime"])
-sales_df["date"] = sales_df["sale_datetime"].dt.date.astype(str)
+sales_df["date"] = sales_df["sale_datetime"].dt.strftime("%Y-%m-%d")  # Ensure string date
 sales_df["time"] = sales_df["sale_datetime"].dt.time.astype(str)
 
 sales_df = sales_df[[

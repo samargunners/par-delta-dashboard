@@ -20,14 +20,21 @@ date_range = st.date_input("Select Date Range", [])
 
 # --- Data Fetching ---
 @st.cache_data(ttl=3600)
-def load_data(table):
-    return pd.DataFrame(
-        supabase.table(table).select("*").range(0, 99999).execute().data
-    )
+def load_all_rows(table):
+    all_data = []
+    chunk_size = 1000
+    offset = 0
+    while True:
+        response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+        data_chunk = response.data
+        if not data_chunk:
+            break
+        all_data.extend(data_chunk)
+        offset += chunk_size
+    return pd.DataFrame(all_data)
 
-raw_sales_data = supabase.table("donut_sales_hourly").select("*").range(0, 99999).execute()
-sales_df = pd.DataFrame(raw_sales_data.data)
-usage_df = load_data("usage_overview")
+sales_df = load_all_rows("donut_sales_hourly")
+usage_df = load_all_rows("usage_overview")
 
 # --- Preprocessing ---
 sales_df["date"] = pd.to_datetime(sales_df["date"], errors="coerce").dt.date

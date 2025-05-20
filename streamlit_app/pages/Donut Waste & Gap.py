@@ -27,9 +27,9 @@ sales_df = load_data("donut_sales_hourly")
 usage_df = load_data("usage_overview")
 
 # --- Preprocessing ---
-sales_df["sale_datetime"] = pd.to_datetime(sales_df["sale_datetime"])
-sales_df["date"] = sales_df["sale_datetime"].dt.date
-sales_df["hour"] = sales_df["sale_datetime"].dt.hour
+sales_df["date"] = pd.to_datetime(sales_df["date"]).dt.date
+sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.time  # Adjust format if needed
+sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.hour
 sales_df["pc_number"] = sales_df["pc_number"].astype(str)
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
 donut_sales = sales_df[sales_df["product_type"] == "donut"]

@@ -76,6 +76,22 @@ def evaluate_clock_in(row):
 
 merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate_clock_in, axis=1)
 
+# --- Absence Calculation ---
+# All scheduled shifts
+all_sched = sched_df[["employee_id", "employee_name", "date", "pc_number"]].copy()
+# All clock-ins (already filtered)
+all_clock = clock_df[["employee_id", "date"]].copy()
+# Merge to find scheduled shifts with no clock-in
+absent_df = pd.merge(
+    all_sched,
+    all_clock,
+    on=["employee_id", "date"],
+    how="left",
+    indicator=True
+)
+absent_df = absent_df[absent_df["_merge"] == "left_only"]
+absent_count = absent_df.groupby(["employee_name", "employee_id", "pc_number"]).size().reset_index(name="days_absent")
+
 # --- Summary ---
 summary = merged_df[merged_df["status"].isin(["On Time", "Late"])]
 report = summary.groupby(["employee_name", "employee_id", "pc_number"]).agg(
@@ -83,6 +99,15 @@ report = summary.groupby(["employee_name", "employee_id", "pc_number"]).agg(
     count_late=("status", lambda x: (x == "Late").sum()),
     avg_late_minutes=("late_minutes", lambda x: round(x[x > 0].mean(), 2) if (x > 0).any() else 0)
 ).reset_index().rename(columns={"pc_number": "location"})
+
+# Merge absence count into report
+report = pd.merge(
+    report,
+    absent_count.rename(columns={"pc_number": "location"}),
+    on=["employee_name", "employee_id", "location"],
+    how="left"
+)
+report["days_absent"] = report["days_absent"].fillna(0).astype(int)
 
 # --- Display Table ---
 st.subheader("📋 Employee Punctuality Summary")

@@ -34,8 +34,8 @@ sales_df["pc_number"] = sales_df["pc_number"].astype(str).str.strip().str.zfill(
 sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S", errors="coerce").dt.time
 sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S", errors="coerce").dt.hour
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
-donut_sales = sales_df[sales_df["product_type"].isin(["donut", "donuts"])]
 
+donut_sales = sales_df[sales_df["product_type"].isin(["donut", "donuts"])]
 sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
 
 usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
@@ -62,6 +62,22 @@ merged["SalesQty"] = merged["SalesQty"].fillna(0)
 merged["CalculatedWaste"] = merged["ordered_qty"] - merged["SalesQty"]
 merged["Gap"] = merged["CalculatedWaste"] - merged["wasted_qty"]
 merged["DonutCost"] = merged["wasted_qty"] * 0.36
+
+if st.checkbox(" SHow Debug Info"):
+    # Debug: Date Range Comparison
+    st.write("📅 **Date Ranges**")
+    st.write("Sales Dates Range:", donut_sales["date"].min(), "to", donut_sales["date"].max())
+    st.write("Usage Dates Range:", usage_donuts["date"].min(), "to", usage_donuts["date"].max())
+
+    # Debug: PC Number Comparison
+    st.write("🏪 **PC Numbers in Sales Data:**", sorted(donut_sales["pc_number"].unique()))
+    st.write("🏪 **PC Numbers in Usage Data:**", sorted(usage_donuts["pc_number"].unique()))
+
+    # Debug: Check merged sample
+    st.write("🔍 **Sample of Merged Data (SalesQty):**")
+    merged_check = pd.merge(usage_donuts, sales_summary, on=["date", "pc_number"], how="left")
+    st.write(merged_check[["date", "pc_number", "SalesQty"]].head(10))
+
 
 # --- Table Output ---
 st.subheader("📋 Donut Usage Summary")

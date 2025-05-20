@@ -3,6 +3,7 @@ import pandas as pd
 from supabase import create_client
 from datetime import datetime
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 # --- Supabase Setup ---
 url = st.secrets["SUPABASE_URL"]
@@ -78,29 +79,41 @@ st.dataframe(summary)
 # Chart 1: Top 10 by absolute Variance Qty (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by Quantity")
 top_qty_variance = df.reindex(df["qty_variance"].abs().sort_values(ascending=False).index).head(10)
-top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=True)  # ascending for horizontal bar chart
+top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=True)  # for horizontal bar
 
 if not top_qty_variance.empty:
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.barh(top_qty_variance["product_name"], top_qty_variance["qty_variance"], color="skyblue")
-    ax.set_xlabel("Variance Qty")
-    ax.set_ylabel("Product Name")
-    ax.set_title("Top 10 Variance by Quantity")
-    st.pyplot(fig)
+    fig1 = px.bar(
+        top_qty_variance,
+        x="qty_variance",
+        y="product_name",
+        orientation="h",
+        labels={"qty_variance": "Variance Qty", "product_name": "Product Name"},
+        title="Top 10 Variance by Quantity",
+        color="qty_variance",
+        color_continuous_scale="Blues",
+        hover_data=["reporting_period", "qty_variance"]
+    )
+    st.plotly_chart(fig1, use_container_width=True)
 else:
     st.info("No data available for selected filters.")
 
 # Chart 2: Top 10 by absolute Variance $ (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by $")
 top_value_variance = df.reindex(df["variance"].abs().sort_values(ascending=False).index).head(10)
-top_value_variance = top_value_variance.sort_values("variance", ascending=True)  # ascending for horizontal bar chart
+top_value_variance = top_value_variance.sort_values("variance", ascending=True)  # for horizontal bar
 
 if not top_value_variance.empty:
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.barh(top_value_variance["product_name"], top_value_variance["variance"], color="orange")
-    ax.set_xlabel("Variance $")
-    ax.set_ylabel("Product Name")
-    ax.set_title("Top 10 Variance by $")
-    st.pyplot(fig)
+    fig2 = px.bar(
+        top_value_variance,
+        x="variance",
+        y="product_name",
+        orientation="h",
+        labels={"variance": "Variance $", "product_name": "Product Name"},
+        title="Top 10 Variance by $",
+        color="variance",
+        color_continuous_scale="Oranges",
+        hover_data=["reporting_period", "variance"]
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 else:
     st.info("No data available for selected filters.")

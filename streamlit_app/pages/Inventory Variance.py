@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 # --- Supabase Setup ---
 url = st.secrets["SUPABASE_URL"]
@@ -77,17 +78,29 @@ st.dataframe(summary)
 # Chart 1: Top 10 by absolute Variance Qty (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by Quantity")
 top_qty_variance = df.reindex(df["qty_variance"].abs().sort_values(ascending=False).index).head(10)
-top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=False)
+top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=True)  # ascending for horizontal bar chart
+
 if not top_qty_variance.empty:
-    st.bar_chart(top_qty_variance.set_index("product_name")["qty_variance"].rename("Variance Qty"))
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.barh(top_qty_variance["product_name"], top_qty_variance["qty_variance"], color="skyblue")
+    ax.set_xlabel("Variance Qty")
+    ax.set_ylabel("Product Name")
+    ax.set_title("Top 10 Variance by Quantity")
+    st.pyplot(fig)
 else:
     st.info("No data available for selected filters.")
 
 # Chart 2: Top 10 by absolute Variance $ (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by $")
 top_value_variance = df.reindex(df["variance"].abs().sort_values(ascending=False).index).head(10)
-top_value_variance = top_value_variance.sort_values("variance", ascending=False)
+top_value_variance = top_value_variance.sort_values("variance", ascending=True)  # ascending for horizontal bar chart
+
 if not top_value_variance.empty:
-    st.bar_chart(top_value_variance.set_index("product_name")["variance"].rename("Variance $"))
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.barh(top_value_variance["product_name"], top_value_variance["variance"], color="orange")
+    ax.set_xlabel("Variance $")
+    ax.set_ylabel("Product Name")
+    ax.set_title("Top 10 Variance by $")
+    st.pyplot(fig)
 else:
     st.info("No data available for selected filters.")

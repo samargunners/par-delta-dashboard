@@ -50,6 +50,9 @@ daily_summary["actual_labor_pct_sales"] = (
 ) * 100
 
 # --- Charts ---
+st.subheader("📊 Actual Labor % of Sales")
+st.line_chart(daily_summary.set_index("date")[["actual_labor_pct_sales"]])
+
 st.subheader("🕐 Labor Hours Comparison")
 st.line_chart(daily_summary.set_index("date")[["ideal_hours", "scheduled_hours", "actual_hours"]])
 

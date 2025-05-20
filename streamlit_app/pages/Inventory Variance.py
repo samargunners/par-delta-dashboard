@@ -40,19 +40,39 @@ df["Unit Gap"] = df["theoretical_qty"] - df["units_sold"]
 
 # --- Summary Table ---
 summary = df[[
-    "pc_number", "reporting_period", "product_name", "subcategory", "inventory_unit",
-    "beginning_inv_qty", "ending_inv_qty", "purchases_qty", "units_sold",
-    "waste", "variance", "qty_variance", "theoretical_qty", "Unit Gap",
-    "cogs", "theoretical_value", "Theoretical Cost Variance"
-]]
+    "reporting_period",
+    "product_name",
+    "qty_variance",
+    "variance",
+    "units_sold",
+    "cogs",
+    "purchases_qty",
+    "purchase_value"
+]].rename(columns={
+    "qty_variance": "Variance Qty",
+    "variance": "Variance $",
+    "units_sold": "Units Sold",
+    "cogs": "COGS $",
+    "purchases_qty": "Purchase Qty",
+    "purchase_value": "Purchase $"
+})
 
 st.subheader("📋 Inventory Variance Summary")
 st.dataframe(summary)
 
 # --- Charts ---
-st.subheader("📉 Top Variance by Product")
-top_variance = df.sort_values("variance", ascending=False).head(15)
-if not top_variance.empty:
-    st.bar_chart(top_variance.set_index("product_name")["variance"])
+# Chart 1: Top 10 by absolute Variance Qty
+st.subheader("🔟 Top 10 Variance by Quantity")
+top_qty_variance = df.reindex(df["qty_variance"].abs().sort_values(ascending=False).index).head(10)
+if not top_qty_variance.empty:
+    st.bar_chart(top_qty_variance.set_index("product_name")["qty_variance"].rename("Variance Qty"))
+else:
+    st.info("No data available for selected filters.")
+
+# Chart 2: Top 10 by absolute Variance $
+st.subheader("🔟 Top 10 Variance by $")
+top_value_variance = df.reindex(df["variance"].abs().sort_values(ascending=False).index).head(10)
+if not top_value_variance.empty:
+    st.bar_chart(top_value_variance.set_index("product_name")["variance"].rename("Variance $"))
 else:
     st.info("No data available for selected filters.")

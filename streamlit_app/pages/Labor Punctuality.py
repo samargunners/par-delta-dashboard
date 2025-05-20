@@ -136,7 +136,7 @@ search_name = st.text_input("Search by Employee Name (partial or full):").strip(
 # Prepare a DataFrame with all relevant info
 search_df = clock_df.copy()
 search_df["date"] = search_df["date"].dt.strftime("%Y-%m-%d")
-search_df = search_df[["employee_id", "employee_name", "date", "time_in", "time_out", "pc_number"]]
+search_df = search_df[["employee_id", "employee_name", "date","start_time","end_time", "time_in", "time_out", "pc_number"]]
 search_df = search_df.rename(columns={
     "pc_number": "location",
     "time_in": "clock_in",

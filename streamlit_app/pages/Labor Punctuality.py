@@ -128,3 +128,22 @@ plot_data["Status"] = plot_data["Status"].str.replace("count_", "").str.title()
 
 fig = px.bar(plot_data, x="location", y="Count", color="Status", barmode="group", title="Punctuality by Location")
 st.plotly_chart(fig, use_container_width=True)
+
+# --- Employee Search Table ---
+st.subheader("🔍 Search Employee Clock-in Records")
+search_name = st.text_input("Search by Employee Name (partial or full):").strip().lower()
+
+# Prepare a DataFrame with all relevant info
+search_df = clock_df.copy()
+search_df["date"] = search_df["date"].dt.strftime("%Y-%m-%d")
+search_df = search_df[["employee_id", "employee_name", "date", "time_in", "time_out", "pc_number"]]
+search_df = search_df.rename(columns={
+    "pc_number": "location",
+    "time_in": "clock_in",
+    "time_out": "clock_out"
+})
+
+if search_name:
+    search_df = search_df[search_df["employee_name"].str.lower().str.contains(search_name)]
+
+st.dataframe(search_df, use_container_width=True)

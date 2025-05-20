@@ -77,19 +77,15 @@ def evaluate_clock_in(row):
 merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate_clock_in, axis=1)
 
 # --- Absence Calculation ---
-# All scheduled shifts
-all_sched = sched_df[["employee_id", "date"]].copy()
-# All clock-ins (already filtered)
-all_clock = clock_df[["employee_id", "date", "employee_name", "pc_number"]].copy()
-# Merge to find scheduled shifts with no clock-in
-absent_df = pd.merge(
-    all_sched,
-    all_clock,
+# Merge schedules and clock-ins to find absences
+absence_merge = pd.merge(
+    sched_df[["employee_id", "date", "start_time"]],
+    clock_df[["employee_id", "date", "time_in"]],
     on=["employee_id", "date"],
-    how="left",
-    indicator=True
+    how="left"
 )
-absent_df = absent_df[absent_df["_merge"] == "left_only"]
+# Only count as absent if scheduled (start_time not null) and no clock-in (time_in is null)
+absent_df = absence_merge[(absence_merge["start_time"].notnull()) & (absence_merge["time_in"].isnull())]
 
 # Get latest known employee_name and pc_number for each employee from clock_df
 emp_info = clock_df.groupby("employee_id")[["employee_name", "pc_number"]].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else None).reset_index()
@@ -133,10 +129,13 @@ st.plotly_chart(fig, use_container_width=True)
 st.subheader("🔍 Search Employee Clock-in Records")
 search_name = st.text_input("Search by Employee Name (partial or full):").strip().lower()
 
+# Deduplicate schedule to one row per employee/date (keep earliest start_time if needed)
+sched_df_dedup = sched_df.sort_values(by=["employee_id", "date", "start_time"]).drop_duplicates(subset=["employee_id", "date"], keep="first")
+
 # Merge clock-in and schedule info for search
 search_df = pd.merge(
     clock_df,
-    sched_df[["employee_id", "date", "start_time", "end_time"]],
+    sched_df_dedup[["employee_id", "date", "start_time", "end_time"]],
     on=["employee_id", "date"],
     how="left"
 )
@@ -152,4 +151,12 @@ search_df = search_df[[
 if search_name:
     search_df = search_df[search_df["employee_name"].str.lower().str.contains(search_name)]
 
-st.dataframe(search_df, use_container_width=True)
+# --- Pagination ---
+page_size = 20
+total_rows = len(search_df)
+total_pages = (total_rows - 1) // page_size + 1
+page_num = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
+start_idx = (page_num - 1) * page_size
+end_idx = start_idx + page_size
+st.dataframe(search_df.iloc[start_idx:end_idx], use_container_width=True)
+st.caption(f"Showing {start_idx+1}-{min(end_idx, total_rows)} of {total_rows} records")

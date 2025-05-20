@@ -25,7 +25,8 @@ def load_data(table):
         supabase.table(table).select("*").range(0, 99999).execute().data
     )
 
-sales_df = load_data("donut_sales_hourly")
+raw_sales_data = supabase.table("donut_sales_hourly").select("*").range(0, 99999).execute()
+sales_df = pd.DataFrame(raw_sales_data.data)
 usage_df = load_data("usage_overview")
 
 # --- Preprocessing ---
@@ -76,6 +77,11 @@ if st.checkbox("🔧 Show Debug Info"):
     st.write("🏪 **PC Numbers in Usage Data:**", sorted(usage_donuts["pc_number"].unique()))
     st.write("🔍 **Sample of Merged Data (SalesQty):**")
     st.write(merged[["date", "pc_number", "SalesQty"]].head(10))
+    st.write("🧾 Columns in sales_df:", sales_df.columns.tolist())
+    st.write("📌 Sample rows from sales_df:")
+    st.dataframe(sales_df.head(5))
+    st.write("📦 Raw Supabase API Response Metadata:")
+    st.json(raw_sales_data.__dict__)
 
 # --- Table Output ---
 st.subheader("📋 Donut Usage Summary")

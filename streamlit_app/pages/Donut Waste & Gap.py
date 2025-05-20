@@ -107,19 +107,26 @@ with col2:
     date_hourly = st.date_input("Select Date for Hourly Chart", value=None)
 
 if pc_hourly and date_hourly:
-    # Get opening stock for the day from usage_overview
-    usage_row = usage_df[(usage_df["pc_number"] == pc_hourly) & (usage_df["date"] == date_hourly) & (usage_df["product_type"] == "donuts")]
+    # Get ordered_qty for the day from usage_overview and use as opening stock
+    usage_row = usage_df[
+        (usage_df["pc_number"] == pc_hourly) &
+        (usage_df["date"] == date_hourly) &
+        (usage_df["product_type"] == "donuts")
+    ]
     if not usage_row.empty:
-        opening_stock = usage_row.iloc[0]["opening_stock"]
         ordered_qty = usage_row.iloc[0]["ordered_qty"]
+        opening_stock = ordered_qty  # Opening stock is always ordered_qty
         wasted_qty = usage_row.iloc[0]["wasted_qty"]
         # Filter sales for this store and date
-        sales_hourly = donut_sales[(donut_sales["pc_number"] == pc_hourly) & (donut_sales["date"] == date_hourly)]
+        sales_hourly = donut_sales[
+            (donut_sales["pc_number"] == pc_hourly) &
+            (donut_sales["date"] == date_hourly)
+        ]
         hourly_sales = sales_hourly.groupby("hour").agg(SalesQty=("quantity", "sum")).sort_index().reset_index()
         # Calculate running total sold
         hourly_sales["CumulativeSales"] = hourly_sales["SalesQty"].cumsum()
         # Calculate donuts left after each hour
-        hourly_sales["DonutsLeft"] = opening_stock + ordered_qty - hourly_sales["CumulativeSales"]
+        hourly_sales["DonutsLeft"] = opening_stock - hourly_sales["CumulativeSales"]
         fig3 = px.line(
             hourly_sales, x="hour", y="DonutsLeft",
             labels={"hour": "Hour of Day", "DonutsLeft": "Donuts Left"},

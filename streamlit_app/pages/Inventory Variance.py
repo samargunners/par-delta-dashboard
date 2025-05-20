@@ -38,6 +38,9 @@ if reporting_period != "All":
 df["Theoretical Cost Variance"] = df["theoretical_value"] - df["cogs"]
 df["Unit Gap"] = df["theoretical_qty"] - df["units_sold"]
 
+st.write("Columns in DataFrame:", df.columns.tolist())
+
+
 # --- Summary Table ---
 summary = df[[
     "reporting_period",

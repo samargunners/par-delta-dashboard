@@ -23,7 +23,7 @@ def load_data(table):
     return pd.DataFrame(supabase.table(table).select("*").execute().data)
 
 df = load_data("hourly_labor_summary")
-df["date"] = pd.to_datetime(df["date"])
+df["date"] = pd.to_datetime(df["date"]).dt.date  # Convert to date only
 df["pc_number"] = df["pc_number"].astype(str)
 
 # --- Apply Filters ---
@@ -31,7 +31,7 @@ if location_filter != "All":
     df = df[df["pc_number"] == location_filter]
 
 if date_range and len(date_range) == 2:
-    start, end = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
+    start, end = pd.to_datetime(date_range[0]).date(), pd.to_datetime(date_range[1]).date()
     df = df[(df["date"] >= start) & (df["date"] <= end)]
 
 # --- Summary by Date ---

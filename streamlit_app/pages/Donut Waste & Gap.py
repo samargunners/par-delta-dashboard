@@ -32,7 +32,7 @@ sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.time  
 sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.hour
 sales_df["pc_number"] = sales_df["pc_number"].astype(str)
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
-donut_sales = sales_df[sales_df["product_type"] == "donut"]
+donut_sales = sales_df[sales_df["product_type"] == "Donut"]
 
 sales_summary = donut_sales.groupby(["pc_number", "date"]).agg(SalesQty=("quantity", "sum")).reset_index()
 

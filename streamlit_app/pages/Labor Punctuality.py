@@ -78,7 +78,7 @@ merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate_clock_in, axis=
 
 # --- Absence Calculation ---
 # All scheduled shifts
-all_sched = sched_df[["employee_id", "employee_name", "date", "pc_number"]].copy()
+all_sched = sched_df[["employee_id", "date"]].copy()
 # All clock-ins (already filtered)
 all_clock = clock_df[["employee_id", "date"]].copy()
 # Merge to find scheduled shifts with no clock-in

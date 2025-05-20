@@ -4,3 +4,4 @@ supabase
 numpy
 plotly
 plotly_express
+matplotlib

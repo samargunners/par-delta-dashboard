@@ -21,24 +21,25 @@ date_range = st.date_input("Select Date Range", [])
 # --- Data Fetching ---
 @st.cache_data(ttl=3600)
 def load_data(table):
-    return pd.DataFrame(supabase.table(table).select("*").execute().data)
+    return pd.DataFrame(
+        supabase.table(table).select("*").range(0, 99999).execute().data
+    )
 
 sales_df = load_data("donut_sales_hourly")
 usage_df = load_data("usage_overview")
 
 # --- Preprocessing ---
 sales_df["date"] = pd.to_datetime(sales_df["date"]).dt.date
-sales_df["pc_number"] = sales_df["pc_number"].astype(str)
-usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
-usage_df["pc_number"] = usage_df["pc_number"].astype(str)
-
-sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.time  # Adjust format if needed
-sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S").dt.hour
+sales_df["pc_number"] = sales_df["pc_number"].astype(str).str.strip().str.zfill(6)
+sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S", errors="coerce").dt.time
+sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S", errors="coerce").dt.hour
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
 donut_sales = sales_df[sales_df["product_type"].isin(["donut", "donuts"])]
 
 sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
 
+usage_df["date"] = pd.to_datetime(usage_df["date"]).dt.date
+usage_df["pc_number"] = usage_df["pc_number"].astype(str).str.strip().str.zfill(6)
 usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
 usage_donuts = usage_df[usage_df["product_type"].isin(["donut", "donuts"])]
 
@@ -55,25 +56,6 @@ if date_range and len(date_range) == 2:
     sales_summary = sales_summary[(sales_summary["date"] >= start_date) & (sales_summary["date"] <= end_date)]
     donut_sales = donut_sales[(donut_sales["date"] >= start_date) & (donut_sales["date"] <= end_date)]
 
-# --- Ensure types match before merge ---
-usage_donuts["pc_number"] = usage_donuts["pc_number"].astype(str).str.strip().str.zfill(6)
-sales_summary["pc_number"] = sales_summary["pc_number"].astype(str).str.strip().str.zfill(6)
-usage_donuts["date"] = pd.to_datetime(usage_donuts["date"]).dt.date
-sales_summary["date"] = pd.to_datetime(sales_summary["date"]).dt.date
-
-# Print unique keys for debugging
-st.write("usage_donuts unique keys:", usage_donuts[['date', 'pc_number']].drop_duplicates())
-st.write("sales_summary unique keys:", sales_summary[['date', 'pc_number']].drop_duplicates())
-
-st.write("usage_donuts sample:", usage_donuts[["date", "pc_number"]].head())
-st.write("sales_summary sample:", sales_summary[["date", "pc_number", "SalesQty"]].head())
-st.write("usage_donuts types:", usage_donuts.dtypes)
-st.write("sales_summary types:", sales_summary.dtypes)
-
-st.write("Donut Sales Hourly - Min Date:", sales_df["date"].min())
-st.write("Donut Sales Hourly - Max Date:", sales_df["date"].max())
-st.write("Donut Sales Hourly - Row Count:", len(sales_df))
-
 # --- Merge & Calculate ---
 merged = pd.merge(usage_donuts, sales_summary, on=["date", "pc_number"], how="left")
 merged["SalesQty"] = merged["SalesQty"].fillna(0)
@@ -81,17 +63,18 @@ merged["CalculatedWaste"] = merged["ordered_qty"] - merged["SalesQty"]
 merged["Gap"] = merged["CalculatedWaste"] - merged["wasted_qty"]
 merged["DonutCost"] = merged["wasted_qty"] * 0.36
 
-# --- Table ---
+# --- Table Output ---
 st.subheader("📋 Donut Usage Summary")
 st.dataframe(merged)
 
-# --- Graph 1: Trend line for Ordered Qty, Sales Qty, Waste ---
+# --- Graph 1: Ordered, Sales, Waste Trend ---
 st.subheader("📈 Donut Ordered, Sold, and Waste Trend")
 pivot1 = merged.groupby("date").agg({
     "ordered_qty": "sum",
     "SalesQty": "sum",
     "wasted_qty": "sum"
 }).reset_index()
+
 fig1 = px.line(
     pivot1, x="date",
     y=["ordered_qty", "SalesQty", "wasted_qty"],
@@ -102,13 +85,14 @@ fig1 = px.line(
 fig1.update_traces(mode="lines+markers", hovertemplate='%{y}')
 st.plotly_chart(fig1, use_container_width=True)
 
-# --- Graph 2: Gap Analysis Trend ---
+# --- Graph 2: Gap Trend ---
 st.subheader("📉 Donut Waste Gap Analysis Trend")
 pivot2 = merged.groupby("date").agg({
     "CalculatedWaste": "sum",
     "wasted_qty": "sum"
 }).reset_index()
 pivot2["Gap"] = pivot2["CalculatedWaste"] - pivot2["wasted_qty"]
+
 fig2 = px.line(
     pivot2, x="date", y="Gap",
     labels={"Gap": "Gap (Expected Waste - Actual Waste)", "date": "Date"},
@@ -118,7 +102,7 @@ fig2 = px.line(
 fig2.update_traces(mode="lines+markers", hovertemplate='Gap: %{y}')
 st.plotly_chart(fig2, use_container_width=True)
 
-# --- Graph 3: Hourly Donut Count for Selected Store and Date ---
+# --- Graph 3: Hourly Donut Count ---
 st.subheader("⏰ Hourly Donut Count (Select Store & Date)")
 col1, col2 = st.columns(2)
 with col1:
@@ -127,7 +111,6 @@ with col2:
     date_hourly = st.date_input("Select Date for Hourly Chart", value=None)
 
 if pc_hourly and date_hourly:
-    # Get ordered_qty for the day from usage_overview and use as opening stock
     usage_row = usage_df[
         (usage_df["pc_number"] == pc_hourly) &
         (usage_df["date"] == date_hourly) &
@@ -135,18 +118,17 @@ if pc_hourly and date_hourly:
     ]
     if not usage_row.empty:
         ordered_qty = usage_row.iloc[0]["ordered_qty"]
-        opening_stock = ordered_qty  # Opening stock is always ordered_qty
+        opening_stock = ordered_qty
         wasted_qty = usage_row.iloc[0]["wasted_qty"]
-        # Filter sales for this store and date
+
         sales_hourly = donut_sales[
             (donut_sales["pc_number"] == pc_hourly) &
             (donut_sales["date"] == date_hourly)
         ]
         hourly_sales = sales_hourly.groupby("hour").agg(SalesQty=("quantity", "sum")).sort_index().reset_index()
-        # Calculate running total sold
         hourly_sales["CumulativeSales"] = hourly_sales["SalesQty"].cumsum()
-        # Calculate donuts left after each hour
         hourly_sales["DonutsLeft"] = opening_stock - hourly_sales["CumulativeSales"]
+
         fig3 = px.line(
             hourly_sales, x="hour", y="DonutsLeft",
             labels={"hour": "Hour of Day", "DonutsLeft": "Donuts Left"},

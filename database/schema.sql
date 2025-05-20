@@ -6,7 +6,6 @@ updated_schema_sql = """
 
 -- 1. Stores Table
 CREATE TABLE stores (
-    store_id SERIAL PRIMARY KEY,
     pc_number VARCHAR(6) UNIQUE NOT NULL, -- 6-digit store code
     name TEXT,
     address TEXT
@@ -29,21 +28,20 @@ CREATE TABLE products (
 
 -- 4. Usage Overview Table
 CREATE TABLE usage_overview (
-    usage_id SERIAL PRIMARY KEY,
-    store_id INT REFERENCES stores(store_id),
+    store_id INT REFERENCES stores(pc_number),
     date DATE,
     product_type_id INT REFERENCES product_types(product_type_id),
     ordered_qty NUMERIC,
     wasted_qty NUMERIC,
     waste_percent NUMERIC,
     waste_dollar NUMERIC, -- in currency
-    expected_consumption NUMERIC
+    expected_consumption NUMERIC,
+    product_type TEXT
 );
 
 -- 5. Donut Sales Hourly Table
 CREATE TABLE donut_sales_hourly (
-    sale_id SERIAL PRIMARY KEY,
-    store_id INT REFERENCES stores(store_id),
+    store_id INT REFERENCES stores(pc_number),
     sale_datetime TIMESTAMP,
     product_name TEXT,
     product_type_id INT REFERENCES product_types(product_type_id),
@@ -53,10 +51,9 @@ CREATE TABLE donut_sales_hourly (
 
 -- 6. Employee Clockins Table
 CREATE TABLE employee_clockins (
-    clockin_id SERIAL PRIMARY KEY,
     employee_id VARCHAR(20),
     employee_name TEXT,
-    store_id INT REFERENCES stores(store_id),
+    store_id INT REFERENCES stores(pc_number),
     date DATE,
     time_in TIME,
     time_out TIME,
@@ -71,7 +68,6 @@ CREATE TABLE employee_clockins (
 
 -- 7. Employee Schedules Table
 CREATE TABLE employee_schedules (
-    schedule_id SERIAL PRIMARY KEY,
     employee_id VARCHAR(20),
     date DATE,
     start_time TIME,
@@ -80,8 +76,7 @@ CREATE TABLE employee_schedules (
 
 -- 8. Hourly Labor Summary Table
 CREATE TABLE hourly_labor_summary (
-    summary_id SERIAL PRIMARY KEY,
-    store_id INT REFERENCES stores(store_id),
+    store_id INT REFERENCES stores(pc_number),
     date DATE,
     hour_range TEXT,
     forecasted_checks NUMERIC,
@@ -96,8 +91,7 @@ CREATE TABLE hourly_labor_summary (
 
 -- 9. Variance Report Summary Table
 CREATE TABLE variance_report_summary (
-    variance_id SERIAL PRIMARY KEY,
-    store_id INT REFERENCES stores(store_id),
+    store_id INT REFERENCES stores(pc_number),
     product_name TEXT,
     subcategory TEXT,
     unit TEXT,

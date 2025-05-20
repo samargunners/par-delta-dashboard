@@ -11,14 +11,27 @@ supabase = create_client(url, key)
 st.set_page_config(page_title="Inventory Variance", layout="wide")
 st.title("📦 Inventory Variance Analysis")
 
-# --- Load Data ---
+# --- Load Data with Pagination ---
 @st.cache_data(ttl=3600)
-def load_data():
-    return pd.DataFrame(supabase.table("variance_report_summary").select("*").execute().data)
+def load_all_rows(table):
+    all_data = []
+    chunk_size = 1000
+    offset = 0
+    while True:
+        response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+        data_chunk = response.data
+        if not data_chunk:
+            break
+        all_data.extend(data_chunk)
+        offset += chunk_size
+    return pd.DataFrame(all_data)
 
-df = load_data()
+df = load_all_rows("variance_report_summary")
 df["pc_number"] = df["pc_number"].astype(str)
 df["reporting_period"] = df["reporting_period"].astype(str)
+
+# --- Remove unwanted subcategories ---
+df = df[~df["subcategory"].str.lower().isin(["donuts", "fancies", "munchkins"])]
 
 # --- Filters ---
 store_options = ["All"] + sorted(df["pc_number"].unique())
@@ -38,10 +51,8 @@ if reporting_period != "All":
 df["Theoretical Cost Variance"] = df["theoretical_value"] - df["cogs"]
 df["Unit Gap"] = df["theoretical_qty"] - df["units_sold"]
 
-
 # --- Summary Table ---
 summary = df[[
-    "pc_number",
     "reporting_period",
     "product_name",
     "qty_variance",
@@ -56,24 +67,26 @@ summary = df[[
     "units_sold": "Units Sold",
     "cogs": "COGS $",
     "purchases_qty": "Purchase Qty",
-    "purchase_value": "Purchase $"
+    "purchases_value": "Purchase $"
 })
 
 st.subheader("📋 Inventory Variance Summary")
 st.dataframe(summary)
 
 # --- Charts ---
-# Chart 1: Top 10 by absolute Variance Qty
+# Chart 1: Top 10 by absolute Variance Qty (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by Quantity")
-top_qty_variance = df.reindex(df["qty_variance"].abs().sort_values(ascending=False).index).head(10)
+top_qty_variance = df.loc[df["qty_variance"].abs().sort_values(ascending=False).index].head(10)
+top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=False)
 if not top_qty_variance.empty:
     st.bar_chart(top_qty_variance.set_index("product_name")["qty_variance"].rename("Variance Qty"))
 else:
     st.info("No data available for selected filters.")
 
-# Chart 2: Top 10 by absolute Variance $
+# Chart 2: Top 10 by absolute Variance $ (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Variance by $")
-top_value_variance = df.reindex(df["variance"].abs().sort_values(ascending=False).index).head(10)
+top_value_variance = df.loc[df["variance"].abs().sort_values(ascending=False).index].head(10)
+top_value_variance = top_value_variance.sort_values("variance", ascending=False)
 if not top_value_variance.empty:
     st.bar_chart(top_value_variance.set_index("product_name")["variance"].rename("Variance $"))
 else:

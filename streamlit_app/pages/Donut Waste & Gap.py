@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client
 from datetime import datetime
+import plotly.express as px
 
 # --- Supabase Setup ---
 url = st.secrets["SUPABASE_URL"]
@@ -28,6 +29,7 @@ usage_df = load_data("usage_overview")
 # --- Preprocessing ---
 sales_df["sale_datetime"] = pd.to_datetime(sales_df["sale_datetime"])
 sales_df["date"] = sales_df["sale_datetime"].dt.date
+sales_df["hour"] = sales_df["sale_datetime"].dt.hour
 sales_df["pc_number"] = sales_df["pc_number"].astype(str)
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
 donut_sales = sales_df[sales_df["product_type"] == "donut"]
@@ -43,12 +45,14 @@ usage_donuts = usage_df[usage_df["product_type"] == "donuts"]
 if location_filter != "All":
     usage_donuts = usage_donuts[usage_donuts["pc_number"] == location_filter]
     sales_summary = sales_summary[sales_summary["pc_number"] == location_filter]
+    donut_sales = donut_sales[donut_sales["pc_number"] == location_filter]
 
 if date_range and len(date_range) == 2:
     start_date = pd.to_datetime(date_range[0]).date()
     end_date = pd.to_datetime(date_range[1]).date()
     usage_donuts = usage_donuts[(usage_donuts["date"] >= start_date) & (usage_donuts["date"] <= end_date)]
     sales_summary = sales_summary[(sales_summary["date"] >= start_date) & (sales_summary["date"] <= end_date)]
+    donut_sales = donut_sales[(donut_sales["date"] >= start_date) & (donut_sales["date"] <= end_date)]
 
 # --- Merge & Calculate ---
 merged = pd.merge(usage_donuts, sales_summary, on=["date", "pc_number"], how="left")
@@ -57,17 +61,72 @@ merged["CalculatedWaste"] = merged["ordered_qty"] - merged["SalesQty"]
 merged["Gap"] = merged["CalculatedWaste"] - merged["wasted_qty"]
 merged["DonutCost"] = merged["wasted_qty"] * 0.36
 
-# --- Display ---
+# --- Table ---
 st.subheader("📋 Donut Usage Summary")
 st.dataframe(merged)
 
-# --- Charts ---
-st.subheader("📈 Donut Waste vs Sales Over Time")
-pivot = merged.groupby("date").agg({
+# --- Graph 1: Trend line for Ordered Qty, Sales Qty, Waste ---
+st.subheader("📈 Donut Ordered, Sold, and Waste Trend")
+pivot1 = merged.groupby("date").agg({
     "ordered_qty": "sum",
     "SalesQty": "sum",
-    "wasted_qty": "sum",
-    "CalculatedWaste": "sum"
+    "wasted_qty": "sum"
 }).reset_index()
+fig1 = px.line(
+    pivot1, x="date",
+    y=["ordered_qty", "SalesQty", "wasted_qty"],
+    labels={"value": "Quantity", "date": "Date", "variable": "Metric"},
+    title="Ordered Qty, Sales Qty, and Waste Over Time",
+    markers=True
+)
+fig1.update_traces(mode="lines+markers", hovertemplate='%{y}')
+st.plotly_chart(fig1, use_container_width=True)
 
-st.line_chart(pivot.set_index("date"))
+# --- Graph 2: Gap Analysis Trend ---
+st.subheader("📉 Donut Waste Gap Analysis Trend")
+pivot2 = merged.groupby("date").agg({
+    "CalculatedWaste": "sum",
+    "wasted_qty": "sum"
+}).reset_index()
+pivot2["Gap"] = pivot2["CalculatedWaste"] - pivot2["wasted_qty"]
+fig2 = px.line(
+    pivot2, x="date", y="Gap",
+    labels={"Gap": "Gap (Expected Waste - Actual Waste)", "date": "Date"},
+    title="Gap Analysis Over Time",
+    markers=True
+)
+fig2.update_traces(mode="lines+markers", hovertemplate='Gap: %{y}')
+st.plotly_chart(fig2, use_container_width=True)
+
+# --- Graph 3: Hourly Donut Count for Selected Store and Date ---
+st.subheader("⏰ Hourly Donut Count (Select Store & Date)")
+col1, col2 = st.columns(2)
+with col1:
+    pc_hourly = st.selectbox("Select Store for Hourly Chart", sorted(usage_df["pc_number"].unique()))
+with col2:
+    date_hourly = st.date_input("Select Date for Hourly Chart", value=None)
+
+if pc_hourly and date_hourly:
+    # Get opening stock for the day from usage_overview
+    usage_row = usage_df[(usage_df["pc_number"] == pc_hourly) & (usage_df["date"] == date_hourly) & (usage_df["product_type"] == "donuts")]
+    if not usage_row.empty:
+        opening_stock = usage_row.iloc[0]["opening_stock"]
+        ordered_qty = usage_row.iloc[0]["ordered_qty"]
+        wasted_qty = usage_row.iloc[0]["wasted_qty"]
+        # Filter sales for this store and date
+        sales_hourly = donut_sales[(donut_sales["pc_number"] == pc_hourly) & (donut_sales["date"] == date_hourly)]
+        hourly_sales = sales_hourly.groupby("hour").agg(SalesQty=("quantity", "sum")).sort_index().reset_index()
+        # Calculate running total sold
+        hourly_sales["CumulativeSales"] = hourly_sales["SalesQty"].cumsum()
+        # Calculate donuts left after each hour
+        hourly_sales["DonutsLeft"] = opening_stock + ordered_qty - hourly_sales["CumulativeSales"]
+        fig3 = px.line(
+            hourly_sales, x="hour", y="DonutsLeft",
+            labels={"hour": "Hour of Day", "DonutsLeft": "Donuts Left"},
+            title=f"Hourly Donut Count for Store {pc_hourly} on {date_hourly}",
+            markers=True
+        )
+        fig3.update_traces(mode="lines+markers", hovertemplate='Hour %{x}: %{y} donuts left')
+        st.plotly_chart(fig3, use_container_width=True)
+    else:
+        st.info("No usage data for selected store and date.")

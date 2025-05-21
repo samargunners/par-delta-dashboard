@@ -18,6 +18,10 @@ location_filter = st.selectbox("Select Store", ["All"] + [
 ])
 date_range = st.date_input("Select Date Range", [])
 
+# --- Late threshold ---
+st.markdown("### ⚙️ Settings")
+late_threshold = st.slider("Late time threshold (minutes)", min_value=1, max_value=15, value=5)
+
 # --- Load Data ---
 @st.cache_data(ttl=3600)
 def load_data(table):
@@ -48,15 +52,15 @@ if date_range and len(date_range) == 2:
     clock_df = clock_df[(clock_df["date"] >= start) & (clock_df["date"] <= end)]
     sched_df = sched_df[(sched_df["date"] >= start) & (sched_df["date"] <= end)]
 
-# --- Keep earliest clock-in per employee per date
+# --- Keep earliest clock-in per employee/date
 clock_df = clock_df.sort_values(by=["employee_id", "date", "time_in"]).drop_duplicates(
     subset=["employee_id", "date"], keep="first"
 )
 
-# --- Merge schedule and clock-in (allow multiple shifts)
+# --- Merge schedule + earliest clockin
 merged_df = pd.merge(
     sched_df,
-    clock_df[["employee_id", "date", "time_in"]],
+    clock_df[["employee_id", "date", "time_in", "employee_name", "pc_number"]],
     on=["employee_id", "date"],
     how="left"
 )
@@ -69,11 +73,11 @@ def evaluate(row):
         start_dt = datetime.combine(datetime.today(), pd.to_datetime(row["start_time"]).time())
         timein_dt = datetime.combine(datetime.today(), pd.to_datetime(row["time_in"]).time())
         delta = (timein_dt - start_dt).total_seconds() / 60
-        if abs(delta) <= 5:
+        if abs(delta) <= late_threshold:
             return pd.Series(["On Time", 0])
-        elif delta > 5:
+        elif delta > late_threshold:
             return pd.Series(["Late", round(delta)])
-        elif delta < -5:
+        elif delta < -late_threshold:
             return pd.Series(["Early", 0])
         else:
             return pd.Series(["Other", None])
@@ -82,11 +86,8 @@ def evaluate(row):
 
 merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate, axis=1)
 
-# --- Add pc_number from clock_df to summary
-pc_lookup = clock_df[["employee_id", "date", "pc_number"]].drop_duplicates()
-summary = pd.merge(merged_df, pc_lookup, on=["employee_id", "date"], how="left")
-
-# --- Group to calculate report
+# --- Grouping + Summary ---
+summary = merged_df.copy()
 report = summary.groupby(["employee_id", "employee_name", "pc_number"]).agg(
     count_ontime=("status", lambda x: (x == "On Time").sum()),
     count_late=("status", lambda x: (x == "Late").sum()),
@@ -95,23 +96,50 @@ report = summary.groupby(["employee_id", "employee_name", "pc_number"]).agg(
     avg_late_minutes=("late_minutes", lambda x: round(x[x > 0].mean(), 2) if (x > 0).any() else 0)
 ).reset_index()
 
-# --- Map store names
+# --- Map store name
 store_map = dict(zip(stores_df["pc_number"], stores_df["store_name"]))
 report["location"] = report["pc_number"].map(store_map)
 report.drop(columns="pc_number", inplace=True)
 
-# --- Display summary table
+# --- Display Summary Table ---
 st.subheader("📋 Employee Punctuality Summary")
 st.dataframe(report)
 
-# --- Visual: Bar chart by employee
+# --- Bar Chart: On Time vs Late per Employee ---
 st.subheader("📊 On Time vs Late per Employee")
 plot_data = report[["employee_name", "count_ontime", "count_late"]].copy()
-plot_data = pd.melt(plot_data, id_vars="employee_name", value_vars=["count_ontime", "count_late"],
-                    var_name="Status", value_name="Count")
+plot_data = pd.melt(plot_data, id_vars="employee_name", var_name="Status", value_name="Count")
 plot_data["Status"] = plot_data["Status"].str.replace("count_", "").str.title()
 
-fig = px.bar(plot_data, x="employee_name", y="Count", color="Status", barmode="group",
-             title="On Time vs Late Clock-ins per Employee")
-fig.update_layout(xaxis_tickangle=-45)
-st.plotly_chart(fig, use_container_width=True)
+fig_bar = px.bar(plot_data, x="employee_name", y="Count", color="Status", barmode="group",
+                 title="On Time vs Late Clock-ins per Employee")
+fig_bar.update_layout(xaxis_tickangle=-45)
+st.plotly_chart(fig_bar, use_container_width=True)
+
+# --- 📆 Daily Punctuality Trend Line ---
+st.subheader("📈 Daily Punctuality Trend")
+trend_data = summary[summary["status"].isin(["On Time", "Late"])].copy()
+trend_grouped = trend_data.groupby(["date", "status"]).size().reset_index(name="count")
+
+fig_trend = px.line(
+    trend_grouped, x="date", y="count", color="status",
+    markers=True, title="Daily Punctuality Trend"
+)
+st.plotly_chart(fig_trend, use_container_width=True)
+
+# --- 🔥 Heatmap of Status by Day ---
+st.subheader("🗓️ Heatmap: Daily Punctuality Status")
+heatmap_data = summary.copy()
+heatmap_data["day"] = heatmap_data["date"].dt.strftime("%Y-%m-%d")
+heatmap_pivot = heatmap_data.pivot_table(
+    index="day", columns="status", values="employee_id", aggfunc="count", fill_value=0
+).reset_index()
+
+heatmap_long = pd.melt(heatmap_pivot, id_vars="day", var_name="Status", value_name="Count")
+
+fig_heatmap = px.density_heatmap(
+    heatmap_long, x="Status", y="day", z="Count", color_continuous_scale="Blues",
+    title="Punctuality Heatmap by Day"
+)
+fig_heatmap.update_layout(yaxis=dict(autorange="reversed"))
+st.plotly_chart(fig_heatmap, use_container_width=True)

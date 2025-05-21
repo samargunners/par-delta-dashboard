@@ -39,11 +39,11 @@ sched_df["date"] = pd.to_datetime(sched_df["date"])
 clock_df["employee_id"] = clock_df["employee_id"].astype(str)
 sched_df["employee_id"] = sched_df["employee_id"].astype(str)
 clock_df["pc_number"] = clock_df["pc_number"].astype(str).str.zfill(6)
-sched_df["pc_number"] = sched_df["pc_number"].astype(str).str.zfill(6)
+
 
 if location_filter != "All":
     clock_df = clock_df[clock_df["pc_number"] == location_filter]
-    sched_df = sched_df[sched_df["pc_number"] == location_filter]
+    
 
 if date_range and len(date_range) == 2:
     start, end = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])

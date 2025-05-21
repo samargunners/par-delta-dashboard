@@ -49,6 +49,21 @@ daily_summary["actual_labor_pct_sales"] = (
     daily_summary["actual_labor"] / daily_summary["sales_value"]
 ) * 100
 
+# --- Weekly Summary ---
+df["week"] = pd.to_datetime(df["date"])
+weekly_summary = df.groupby(pd.Grouper(key="week", freq="W-SAT")).agg(
+    ideal_hours=("ideal_hours", "sum"),
+    scheduled_hours=("scheduled_hours", "sum"),
+    actual_hours=("actual_hours", "sum"),
+    actual_labor=("actual_labor", "sum"),
+    forecasted_sales=("forecasted_sales", "sum"),
+    sales_value=("sales_value", "sum")
+).reset_index()
+weekly_summary["week_start"] = weekly_summary["week"] - pd.to_timedelta(6, unit="d")
+weekly_summary["actual_labor_pct_sales"] = (
+    weekly_summary["actual_labor"] / weekly_summary["sales_value"]
+) * 100
+
 # --- Charts ---
 st.subheader("📊 Actual Labor % of Sales")
 st.line_chart(daily_summary.set_index("date")[["actual_labor_pct_sales"]])
@@ -59,9 +74,14 @@ st.line_chart(daily_summary.set_index("date")[["ideal_hours", "scheduled_hours",
 st.subheader("💰 Sales vs Labor Cost")
 st.line_chart(daily_summary.set_index("date")[["forecasted_sales", "sales_value", "actual_labor"]])
 
-st.subheader("📊 Actual Labor % of Sales")
-st.line_chart(daily_summary.set_index("date")[["actual_labor_pct_sales"]])
-
 # --- Raw Data Table ---
 st.subheader("📋 Daily Summary Table")
 st.dataframe(daily_summary)
+
+st.subheader("📅 Weekly Summary Table (Sunday to Saturday)")
+st.dataframe(
+    weekly_summary[[
+        "week_start", "week", "ideal_hours", "scheduled_hours", "actual_hours",
+        "actual_labor", "forecasted_sales", "sales_value", "actual_labor_pct_sales"
+    ]].rename(columns={"week": "week_end"})
+)

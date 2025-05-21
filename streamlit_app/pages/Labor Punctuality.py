@@ -68,11 +68,19 @@ merged_df = pd.merge(
 # --- Evaluate clock-in status
 def evaluate(row):
     try:
+        if pd.isna(row["start_time"]):
+            if pd.notna(row["time_in"]):
+                return pd.Series(["On Call", None])
+            else:
+                return pd.Series(["No Schedule", None])
+
         if pd.isna(row["time_in"]):
             return pd.Series(["Absent", None])
+
         start_dt = datetime.combine(datetime.today(), pd.to_datetime(row["start_time"]).time())
         timein_dt = datetime.combine(datetime.today(), pd.to_datetime(row["time_in"]).time())
         delta = (timein_dt - start_dt).total_seconds() / 60
+
         if abs(delta) <= late_threshold:
             return pd.Series(["On Time", 0])
         elif delta > late_threshold:
@@ -83,6 +91,7 @@ def evaluate(row):
             return pd.Series(["Other", None])
     except:
         return pd.Series(["Invalid", None])
+
 
 merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate, axis=1)
 

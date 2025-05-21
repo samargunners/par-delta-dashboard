@@ -27,136 +27,94 @@ def load_data(table):
 
 clock_df = load_data("employee_clockin")
 sched_df = load_data("employee_schedules")
+stores_df = load_data("stores")  # should have pc_number + store_name
 
-# --- Validate ---
 if clock_df.empty or sched_df.empty:
-    st.warning("⚠️ One or both tables are empty. Check Supabase data.")
+    st.warning("⚠️ One or both tables are empty.")
     st.stop()
 
-# --- Clean and filter ---
+# --- Preprocess ---
 clock_df["date"] = pd.to_datetime(clock_df["date"])
 sched_df["date"] = pd.to_datetime(sched_df["date"])
 clock_df["employee_id"] = clock_df["employee_id"].astype(str)
 sched_df["employee_id"] = sched_df["employee_id"].astype(str)
-
-# Keep only the earliest clock-in for each employee on a given date
-clock_df = clock_df.sort_values(by=["employee_id", "date", "time_in"]).drop_duplicates(subset=["employee_id", "date"], keep="first")
+clock_df["pc_number"] = clock_df["pc_number"].astype(str).str.zfill(6)
+sched_df["pc_number"] = sched_df["pc_number"].astype(str).str.zfill(6)
 
 if location_filter != "All":
     clock_df = clock_df[clock_df["pc_number"] == location_filter]
+    sched_df = sched_df[sched_df["pc_number"] == location_filter]
 
 if date_range and len(date_range) == 2:
     start, end = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
     clock_df = clock_df[(clock_df["date"] >= start) & (clock_df["date"] <= end)]
     sched_df = sched_df[(sched_df["date"] >= start) & (sched_df["date"] <= end)]
 
-# --- Merge ---
-merged_df = pd.merge(
-    clock_df,
-    sched_df,
-    on=["employee_id", "date"],
-    how="inner",
-    suffixes=("_actual", "_scheduled")
+# --- Deduplicate schedule by employee/date/start_time (keep multiple shifts)
+sched_df = sched_df.sort_values(by=["employee_id", "date", "start_time"])
+
+# --- Keep only earliest time_in per employee/date
+clock_df = clock_df.sort_values(by=["employee_id", "date", "time_in"]).drop_duplicates(
+    subset=["employee_id", "date"], keep="first"
 )
 
-# --- Evaluate ---
-def evaluate_clock_in(row):
-    try:
-        scheduled = datetime.combine(datetime.today(), pd.to_datetime(row['start_time']).time())
-        actual = datetime.combine(datetime.today(), pd.to_datetime(row['time_in']).time())
-        delta = (actual - scheduled).total_seconds() / 60
-        if abs(delta) <= 5:
-            return pd.Series(['On Time', 0])
-        elif delta > 5:
-            return pd.Series(['Late', delta])
-        else:
-            return pd.Series(['Early', 0])
-    except:
-        return pd.Series(['Missing', None])
-
-merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate_clock_in, axis=1)
-
-# --- Absence Calculation ---
-# Merge schedules and clock-ins to find absences
-absence_merge = pd.merge(
-    sched_df[["employee_id", "date", "start_time"]],
+# --- Merge schedule and clockin
+merged_df = pd.merge(
+    sched_df,
     clock_df[["employee_id", "date", "time_in"]],
     on=["employee_id", "date"],
     how="left"
 )
-# Only count as absent if scheduled (start_time not null) and no clock-in (time_in is null)
-absent_df = absence_merge[(absence_merge["start_time"].notnull()) & (absence_merge["time_in"].isnull())]
 
-# Get latest known employee_name and pc_number for each employee from clock_df
-emp_info = clock_df.groupby("employee_id")[["employee_name", "pc_number"]].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else None).reset_index()
+# --- Clock-in status evaluation
+def evaluate(row):
+    try:
+        if pd.isna(row["time_in"]):
+            return pd.Series(["Absent", None])
+        start_dt = datetime.combine(datetime.today(), pd.to_datetime(row["start_time"]).time())
+        timein_dt = datetime.combine(datetime.today(), pd.to_datetime(row["time_in"]).time())
+        delta = (timein_dt - start_dt).total_seconds() / 60
+        if abs(delta) <= 5:
+            return pd.Series(["On Time", 0])
+        elif delta > 5:
+            return pd.Series(["Late", round(delta)])
+        elif delta < -5:
+            return pd.Series(["Early", 0])
+        else:
+            return pd.Series(["Other", None])
+    except:
+        return pd.Series(["Invalid", None])
 
-# Count absences per employee/location
-absent_count = absent_df.groupby("employee_id").size().reset_index(name="days_absent")
-absent_count = pd.merge(absent_count, emp_info, on="employee_id", how="left")
+merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate, axis=1)
 
-# --- Summary ---
-summary = merged_df[merged_df["status"].isin(["On Time", "Late"])]
-report = summary.groupby(["employee_name", "employee_id", "pc_number"]).agg(
+# --- Summary Table ---
+summary = merged_df[merged_df["status"].isin(["On Time", "Late", "Absent"])].copy()
+
+# Map store names
+store_map = dict(zip(stores_df["pc_number"], stores_df["store_name"]))
+summary["location"] = summary["pc_number"].map(store_map)
+
+# Calculate final report
+report = summary.groupby(["employee_id", "employee_name", "location"]).agg(
     count_ontime=("status", lambda x: (x == "On Time").sum()),
     count_late=("status", lambda x: (x == "Late").sum()),
+    count_early=("status", lambda x: (x == "Early").sum()),
+    count_absent=("status", lambda x: (x == "Absent").sum()),
     avg_late_minutes=("late_minutes", lambda x: round(x[x > 0].mean(), 2) if (x > 0).any() else 0)
-).reset_index().rename(columns={"pc_number": "location"})
+).reset_index()
 
-# Merge absence count into report
-report = pd.merge(
-    report,
-    absent_count.rename(columns={"employee_name": "employee_name", "pc_number": "location"}),
-    on=["employee_id", "employee_name", "location"],
-    how="left"
-)
-report["days_absent"] = report["days_absent"].fillna(0).astype(int)
-
-# --- Display Table ---
+# --- Display Summary Table ---
 st.subheader("📋 Employee Punctuality Summary")
 st.dataframe(report)
 
-# --- Visual: Bar chart by location ---
-st.subheader("📊 On Time vs Late Clock-ins per Location")
-plot_data = report.groupby("location")[["count_ontime", "count_late"]].sum().reset_index()
-plot_data = pd.melt(plot_data, id_vars="location", value_vars=["count_ontime", "count_late"], 
+# --- Visual: On Time vs Late per Employee ---
+st.subheader("📊 On Time vs Late per Employee")
+plot_data = report[["employee_name", "count_ontime", "count_late"]].copy()
+plot_data = pd.melt(plot_data, id_vars="employee_name", value_vars=["count_ontime", "count_late"],
                     var_name="Status", value_name="Count")
 plot_data["Status"] = plot_data["Status"].str.replace("count_", "").str.title()
 
-fig = px.bar(plot_data, x="location", y="Count", color="Status", barmode="group", title="Punctuality by Location")
+fig = px.bar(plot_data, x="employee_name", y="Count", color="Status", barmode="group",
+             title="On Time vs Late Clock-ins per Employee")
+fig.update_layout(xaxis_tickangle=-45)
 st.plotly_chart(fig, use_container_width=True)
-
-# --- Employee Search Table ---
-st.subheader("🔍 Search Employee Clock-in Records")
-search_name = st.text_input("Search by Employee Name (partial or full):").strip().lower()
-
-# Deduplicate schedule to one row per employee/date (keep earliest start_time if needed)
-sched_df_dedup = sched_df.sort_values(by=["employee_id", "date", "start_time"]).drop_duplicates(subset=["employee_id", "date"], keep="first")
-
-# Merge clock-in and schedule info for search
-search_df = pd.merge(
-    clock_df,
-    sched_df_dedup[["employee_id", "date", "start_time", "end_time"]],
-    on=["employee_id", "date"],
-    how="left"
-)
-search_df["date"] = search_df["date"].dt.strftime("%Y-%m-%d")
-search_df = search_df[[
-    "employee_id", "employee_name", "date", "start_time", "end_time", "time_in", "time_out", "pc_number"
-]].rename(columns={
-    "pc_number": "location",
-    "time_in": "clock_in",
-    "time_out": "clock_out"
-})
-
-if search_name:
-    search_df = search_df[search_df["employee_name"].str.lower().str.contains(search_name)]
-
-# --- Pagination ---
-page_size = 20
-total_rows = len(search_df)
-total_pages = (total_rows - 1) // page_size + 1
-page_num = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
-start_idx = (page_num - 1) * page_size
-end_idx = start_idx + page_size
-st.dataframe(search_df.iloc[start_idx:end_idx], use_container_width=True)
-st.caption(f"Showing {start_idx+1}-{min(end_idx, total_rows)} of {total_rows} records")

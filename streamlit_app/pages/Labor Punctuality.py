@@ -18,6 +18,9 @@ location_filter = st.selectbox("Select Store", ["All"] + [
 ])
 date_range = st.date_input("Select Date Range", [])
 
+# --- Late threshold ---
+st.markdown("### ⚙️ Settings")
+late_threshold = st.slider("Late time threshold (minutes)", min_value=1, max_value=15, value=5)
 
 # --- Load Data ---
 @st.cache_data(ttl=3600)

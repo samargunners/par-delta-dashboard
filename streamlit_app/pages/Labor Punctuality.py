@@ -89,7 +89,7 @@ merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate, axis=1)
 
 # --- Summary Table ---
 summary = merged_df[merged_df["status"].isin(["On Time", "Late", "Absent"])].copy()
-
+st.write("Columns in summary:", summary.columns.tolist())
 # Map store names
 store_map = dict(zip(stores_df["pc_number"], stores_df["store_name"]))
 summary["location"] = summary["pc_number"].map(store_map)

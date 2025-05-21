@@ -1,5 +1,24 @@
-
 import streamlit as st
+
+# --- Simple login demo ---
+def login():
+    st.sidebar.header("Login")
+    username = st.sidebar.text_input("Username")
+    password = st.sidebar.text_input("Password", type="password")
+    if st.sidebar.button("Login"):
+        if username == "test" and password == "test":
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.sidebar.success("Logged in!")
+        else:
+            st.sidebar.error("Invalid username or password")
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if not st.session_state["logged_in"]:
+    login()
+    st.stop()
 
 st.set_page_config(page_title="Par Delta Dashboard", layout="wide")
 st.title("📊 Par Delta Operational Dashboard")

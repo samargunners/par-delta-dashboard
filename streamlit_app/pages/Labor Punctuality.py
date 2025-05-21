@@ -27,7 +27,7 @@ def load_data(table):
 
 clock_df = load_data("employee_clockin")
 sched_df = load_data("employee_schedules")
-stores_df = load_data("stores")  # should have pc_number + store_name
+stores_df = load_data("stores")  # must include pc_number + store_name
 
 if clock_df.empty or sched_df.empty:
     st.warning("⚠️ One or both tables are empty.")
@@ -40,25 +40,20 @@ clock_df["employee_id"] = clock_df["employee_id"].astype(str)
 sched_df["employee_id"] = sched_df["employee_id"].astype(str)
 clock_df["pc_number"] = clock_df["pc_number"].astype(str).str.zfill(6)
 
-
 if location_filter != "All":
     clock_df = clock_df[clock_df["pc_number"] == location_filter]
-    
 
 if date_range and len(date_range) == 2:
     start, end = pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])
     clock_df = clock_df[(clock_df["date"] >= start) & (clock_df["date"] <= end)]
     sched_df = sched_df[(sched_df["date"] >= start) & (sched_df["date"] <= end)]
 
-# --- Deduplicate schedule by employee/date/start_time (keep multiple shifts)
-sched_df = sched_df.sort_values(by=["employee_id", "date", "start_time"])
-
-# --- Keep only earliest time_in per employee/date
+# --- Keep earliest clock-in per employee per date
 clock_df = clock_df.sort_values(by=["employee_id", "date", "time_in"]).drop_duplicates(
     subset=["employee_id", "date"], keep="first"
 )
 
-# --- Merge schedule and clockin
+# --- Merge schedule and clock-in (allow multiple shifts)
 merged_df = pd.merge(
     sched_df,
     clock_df[["employee_id", "date", "time_in"]],
@@ -66,7 +61,7 @@ merged_df = pd.merge(
     how="left"
 )
 
-# --- Clock-in status evaluation
+# --- Evaluate clock-in status
 def evaluate(row):
     try:
         if pd.isna(row["time_in"]):
@@ -87,15 +82,12 @@ def evaluate(row):
 
 merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate, axis=1)
 
-# --- Summary Table ---
-summary = merged_df[merged_df["status"].isin(["On Time", "Late", "Absent"])].copy()
-st.write("Columns in summary:", summary.columns.tolist())
-# Map store names
-store_map = dict(zip(stores_df["pc_number"], stores_df["store_name"]))
-summary["location"] = summary["pc_number"].map(store_map)
+# --- Add pc_number from clock_df to summary
+pc_lookup = clock_df[["employee_id", "date", "pc_number"]].drop_duplicates()
+summary = pd.merge(merged_df, pc_lookup, on=["employee_id", "date"], how="left")
 
-# Calculate final report
-report = summary.groupby(["employee_id", "employee_name", "location"]).agg(
+# --- Group to calculate report
+report = summary.groupby(["employee_id", "employee_name", "pc_number"]).agg(
     count_ontime=("status", lambda x: (x == "On Time").sum()),
     count_late=("status", lambda x: (x == "Late").sum()),
     count_early=("status", lambda x: (x == "Early").sum()),
@@ -103,11 +95,16 @@ report = summary.groupby(["employee_id", "employee_name", "location"]).agg(
     avg_late_minutes=("late_minutes", lambda x: round(x[x > 0].mean(), 2) if (x > 0).any() else 0)
 ).reset_index()
 
-# --- Display Summary Table ---
+# --- Map store names
+store_map = dict(zip(stores_df["pc_number"], stores_df["store_name"]))
+report["location"] = report["pc_number"].map(store_map)
+report.drop(columns="pc_number", inplace=True)
+
+# --- Display summary table
 st.subheader("📋 Employee Punctuality Summary")
 st.dataframe(report)
 
-# --- Visual: On Time vs Late per Employee ---
+# --- Visual: Bar chart by employee
 st.subheader("📊 On Time vs Late per Employee")
 plot_data = report[["employee_name", "count_ontime", "count_late"]].copy()
 plot_data = pd.melt(plot_data, id_vars="employee_name", value_vars=["count_ontime", "count_late"],

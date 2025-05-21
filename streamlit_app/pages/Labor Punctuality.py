@@ -116,8 +116,8 @@ fig_bar = px.bar(plot_data, x="employee_name", y="Count", color="Status", barmod
 fig_bar.update_layout(xaxis_tickangle=-45)
 st.plotly_chart(fig_bar, use_container_width=True)
 
-# --- 📆 Daily Punctuality Trend Line ---
-st.subheader("📈 Daily Punctuality Trend")
+# --- 📈 Daily Punctuality Trend Line ---
+st.subheader("📆 Daily Punctuality Trend")
 trend_data = summary[summary["status"].isin(["On Time", "Late"])].copy()
 trend_grouped = trend_data.groupby(["date", "status"]).size().reset_index(name="count")
 
@@ -127,19 +127,59 @@ fig_trend = px.line(
 )
 st.plotly_chart(fig_trend, use_container_width=True)
 
-# --- 🔥 Heatmap of Status by Day ---
-st.subheader("🗓️ Heatmap: Daily Punctuality Status")
-heatmap_data = summary.copy()
-heatmap_data["day"] = heatmap_data["date"].dt.strftime("%Y-%m-%d")
-heatmap_pivot = heatmap_data.pivot_table(
-    index="day", columns="status", values="employee_id", aggfunc="count", fill_value=0
-).reset_index()
+# --- 🔍 Searchable Employee Clock-in Table ---
+st.subheader("🔍 Search Employee Clock-in Records")
+search_name = st.text_input("Search by Employee Name (partial or full):").strip().lower()
 
-heatmap_long = pd.melt(heatmap_pivot, id_vars="day", var_name="Status", value_name="Count")
+# Deduplicate schedule to one row per employee/date (keep earliest start_time if needed)
+sched_df_dedup = sched_df.sort_values(by=["employee_id", "date", "start_time"]).drop_duplicates(subset=["employee_id", "date"], keep="first")
 
-fig_heatmap = px.density_heatmap(
-    heatmap_long, x="Status", y="day", z="Count", color_continuous_scale="Blues",
-    title="Punctuality Heatmap by Day"
+# Merge clock-in and schedule info for search
+search_df = pd.merge(
+    clock_df,
+    sched_df_dedup[["employee_id", "date", "start_time", "end_time"]],
+    on=["employee_id", "date"],
+    how="left"
 )
-fig_heatmap.update_layout(yaxis=dict(autorange="reversed"))
-st.plotly_chart(fig_heatmap, use_container_width=True)
+search_df["date"] = search_df["date"].dt.strftime("%Y-%m-%d")
+search_df = search_df[[
+    "employee_id", "employee_name", "date", "start_time", "end_time", "time_in", "time_out", "pc_number"
+]].rename(columns={
+    "pc_number": "location",
+    "time_in": "clock_in",
+    "time_out": "clock_out"
+})
+
+if search_name:
+    search_df = search_df[search_df["employee_name"].str.lower().str.contains(search_name)]
+
+# --- Pagination ---
+page_size = 20
+total_rows = len(search_df)
+total_pages = (total_rows - 1) // page_size + 1
+page_num = st.number_input("Page", min_value=1, max_value=total_pages, value=1, step=1)
+start_idx = (page_num - 1) * page_size
+end_idx = start_idx + page_size
+st.dataframe(search_df.iloc[start_idx:end_idx], use_container_width=True)
+st.caption(f"Showing {start_idx+1}-{min(end_idx, total_rows)} of {total_rows} records")
+
+
+# --- 📍 On Time vs Late by Store ---
+st.subheader("🏪 Store-wise Punctuality Breakdown")
+
+# Group summary by pc_number (store)
+store_summary = summary[summary["status"].isin(["On Time", "Late"])].copy()
+store_counts = store_summary.groupby(["pc_number", "status"]).size().reset_index(name="Count")
+
+# Map store name
+store_counts["store_name"] = store_counts["pc_number"].map(store_map)
+store_counts["Status"] = store_counts["status"]
+
+# Plot
+fig_store = px.bar(
+    store_counts,
+    x="store_name", y="Count", color="Status", barmode="group",
+    title="On Time vs Late Clock-ins by Store"
+)
+fig_store.update_layout(xaxis_title="Store", yaxis_title="Clock-in Count", xaxis_tickangle=-30)
+st.plotly_chart(fig_store, use_container_width=True)

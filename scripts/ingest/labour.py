@@ -12,7 +12,7 @@ clockins_df.columns = [
     "time_in", "time_out", "total_time", "rate", 
     "regular_hours", "regular_wages", "ot_hours", "ot_wages", "total_wages"
 ]
-clockins_df["date"] = pd.to_datetime(clockins_df["date"]).dt.date
+clockins_df["date"] = pd.to_datetime(clockins_df["date"], errors="coerce").dt.date
 clockins_df = clockins_df.dropna(subset=["pc_number"])
 clockins_df["pc_number"] = clockins_df["pc_number"].astype(float).astype(int).astype(str)
 

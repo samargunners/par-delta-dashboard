@@ -13,12 +13,21 @@ def login():
         else:
             st.sidebar.error("Invalid username or password")
 
+def logout():
+    if st.sidebar.button("Logout"):
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = ""
+        st.experimental_rerun()
+
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
 if not st.session_state["logged_in"]:
     login()
     st.stop()
+else:
+    st.sidebar.markdown(f"**Logged in as:** {st.session_state.get('username', '')}")
+    logout()
 
 st.set_page_config(page_title="Par Delta Dashboard", layout="wide")
 st.title("📊 Par Delta Operational Dashboard")

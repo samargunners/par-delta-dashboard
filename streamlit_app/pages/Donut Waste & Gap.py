@@ -16,7 +16,10 @@ st.title("🍩 Donut Waste & Gap Analysis")
 location_filter = st.selectbox("Select Store", ["All"] + [
     "301290", "357993", "343939", "358529", "359042", "364322", "363271"
 ])
-date_range = st.date_input("Select Date Range", [])
+min_date = min(sales_df["date"].min(), usage_df["date"].min())
+max_date = max(sales_df["date"].max(), usage_df["date"].max())
+date_range = st.date_input("Select Date Range", [min_date, max_date])
+
 
 # --- Data Fetching ---
 @st.cache_data(ttl=3600)

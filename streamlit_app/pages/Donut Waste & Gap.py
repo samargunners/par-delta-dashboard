@@ -13,12 +13,15 @@ st.set_page_config(page_title="Donut Waste & Gap", layout="wide")
 st.title("🍩 Donut Waste & Gap Analysis")
 
 # --- Filters ---
-location_filter = st.selectbox("Select Store", ["All"] + [
-    "301290", "357993", "343939", "358529", "359042", "364322", "363271"
-])
+# --- Filters ---
+location_filter = st.selectbox("Select Store", ["All"] + sorted(sales_df["pc_number"].unique()))
+
+# Dynamically calculate full date range from data
 min_date = min(sales_df["date"].min(), usage_df["date"].min())
 max_date = max(sales_df["date"].max(), usage_df["date"].max())
+
 date_range = st.date_input("Select Date Range", [min_date, max_date])
+
 
 
 # --- Data Fetching ---

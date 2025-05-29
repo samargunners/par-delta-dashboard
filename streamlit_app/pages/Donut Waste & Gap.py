@@ -12,19 +12,7 @@ supabase = create_client(url, key)
 st.set_page_config(page_title="Donut Waste & Gap", layout="wide")
 st.title("🍩 Donut Waste & Gap Analysis")
 
-# --- Filters ---
-# --- Filters ---
-location_filter = st.selectbox("Select Store", ["All"] + sorted(sales_df["pc_number"].unique()))
-
-# Dynamically calculate full date range from data
-min_date = min(sales_df["date"].min(), usage_df["date"].min())
-max_date = max(sales_df["date"].max(), usage_df["date"].max())
-
-date_range = st.date_input("Select Date Range", [min_date, max_date])
-
-
-
-# --- Data Fetching ---
+# --- Data Fetching Function ---
 @st.cache_data(ttl=3600)
 def load_all_rows(table):
     all_data = []
@@ -39,6 +27,7 @@ def load_all_rows(table):
         offset += chunk_size
     return pd.DataFrame(all_data)
 
+# --- Load Data ---
 sales_df = load_all_rows("donut_sales_hourly")
 usage_df = load_all_rows("usage_overview")
 
@@ -49,19 +38,22 @@ sales_df["time"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S", errors="c
 sales_df["hour"] = pd.to_datetime(sales_df["time"], format="%H:%M:%S", errors="coerce").dt.hour
 sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
 
-# --- FIX: Filter with contains to catch variants like "Donuts", "donut holes", etc.
-donut_sales = sales_df[sales_df["product_type"].str.contains("donut", na=False)]
-
-# Group by date + pc_number
-sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
-
-# Usage preprocessing
 usage_df["date"] = pd.to_datetime(usage_df["date"], errors="coerce").dt.date
 usage_df["pc_number"] = usage_df["pc_number"].astype(str).str.strip().str.zfill(6)
 usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
+
+# --- Filter Setup ---
+location_filter = st.selectbox("Select Store", ["All"] + sorted(sales_df["pc_number"].unique()))
+min_date = min(sales_df["date"].min(), usage_df["date"].min())
+max_date = max(sales_df["date"].max(), usage_df["date"].max())
+date_range = st.date_input("Select Date Range", [min_date, max_date])
+
+# --- Apply Initial Filters ---
+donut_sales = sales_df[sales_df["product_type"].str.contains("donut", na=False)]
+sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
+
 usage_donuts = usage_df[usage_df["product_type"].str.contains("donut", na=False)]
 
-# --- Apply filters ---
 if location_filter != "All":
     usage_donuts = usage_donuts[usage_donuts["pc_number"] == location_filter]
     sales_summary = sales_summary[sales_summary["pc_number"] == location_filter]

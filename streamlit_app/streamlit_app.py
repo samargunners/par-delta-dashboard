@@ -13,6 +13,7 @@ st.page_link("pages/Donut_Waste_&_Gap.py", label="Donut Waste & Gap", icon="🍩
 st.page_link("pages/Labor_Punctuality.py", label="Labor Punctuality", icon="⏱️")
 st.page_link("pages/Ideal_vs_Actual_Labor.py", label="Ideal vs Actual Labor", icon="💼")
 st.page_link("pages/Inventory_Variance.py", label="Inventory Variance", icon="📦")
+st.page_link("pages/Retail_Merchandise.py", label="Retail Merchandise", icon="🛍️")
 
 st.markdown("""
 ---

@@ -145,7 +145,7 @@ if pc_hourly and date_hourly:
             title=f"Hourly Donut Count for Store {pc_hourly} on {date_hourly}",
             markers=True
         )
-        fig3.update_traces(mode="lines+markers", hovertemplate='Hour %{x}: %{y} donuts left')
+        fig3.update_traces(mode="lines+markers", hovertemplate='%{y} donuts left')
         st.plotly_chart(fig3, use_container_width=True)
     else:
         st.info("No usage data for selected store and date.")

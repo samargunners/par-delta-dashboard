@@ -32,8 +32,27 @@ df = load_all_rows("variance_report_summary")
 df["pc_number"] = df["pc_number"].astype(str)
 df["reporting_period"] = df["reporting_period"].astype(str)
 
-# --- Remove unwanted subcategories ---
-df = df[~df["subcategory"].str.lower().isin(["donuts", "fancies", "munchkins"])]
+# --- Subcategory Multiselect Filter ---
+all_subcategories = sorted(df["subcategory"].dropna().unique())
+default_subcategories = [
+    "Bakery",
+    "Beverages",
+    "Coffee",
+    "Condiments Non Deplete",
+    "Cooler Beverages",
+    "Cream Cheese",
+    "Dairy",
+    "Muffins",
+    "Sandwiches & Wraps"
+]
+
+selected_subcategories = st.multiselect(
+    "Filter by Subcategory",
+    options=all_subcategories,
+    default=[s for s in default_subcategories if s in all_subcategories]
+)
+
+df = df[df["subcategory"].isin(selected_subcategories)]
 
 # --- Filters ---
 store_options = ["All"] + sorted(df["pc_number"].unique())

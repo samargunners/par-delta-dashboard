@@ -39,7 +39,10 @@ labor_df.columns = [
     "ideal_hours", "scheduled_hours", "actual_hours", "actual_labor",
     "sales_value", "check_count", "sales_per_labor_hour"
 ]
-labor_df["date"] = pd.to_datetime(labor_df["date"], format="%m/%d/%Y").dt.date
+#labor_df["date"] = pd.to_datetime(labor_df["date"], format="%m/%d/%Y").dt.date
+# Option 1: Allow 2-digit year parsing
+labor_df["date"] = pd.to_datetime(labor_df["date"], format="%m/%d/%y").dt.date
+
 labor_df["pc_number"] = labor_df["pc_number"].astype(str)
 
 labor_df.to_excel(processed_path / "hourly_labor_summary.xlsx", index=False)

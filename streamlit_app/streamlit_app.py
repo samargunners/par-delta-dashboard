@@ -92,7 +92,7 @@ donut_overview = merged.groupby("pc_number").agg(
 ).reset_index()
 donut_overview.rename(columns={"pc_number": "PC Number"}, inplace=True)
 
-st.subheader("🍩 Donut Overview (Last 7 Days Rolling Avg)")
+st.subheader(f"🍩 Donut Overview (Last 7 Days: {rolling_start_date.strftime('%Y-%m-%d')} to {rolling_end_date.strftime('%Y-%m-%d')})")
 st.dataframe(donut_overview[["PC Number", "Calculated_Waste_7d_Avg", "Recorded_Waste_7d_Avg", "Gap"]])
 
 # --- Rolling 7-day window ---
@@ -172,7 +172,7 @@ if dates:
         labor["Schedule_vs_Ideal_Var_%"] = ((labor["scheduled_hours"] - labor["ideal_hours"]) / labor["ideal_hours"].replace(0, 1)) * 100
         labor["Schedule_vs_Actual_Var_%"] = ((labor["scheduled_hours"] - labor["actual_hours"]) / labor["actual_hours"].replace(0, 1)) * 100
         labor.rename(columns={"pc_number": "PC Number"}, inplace=True)
-        st.subheader("⏱️ Labor Overview (Last 7 Days Rolling Total)")
+        st.subheader(f"⏱️ Labor Overview (Last 7 Days: {labor_rolling_start.strftime('%Y-%m-%d')} to {labor_rolling_end.strftime('%Y-%m-%d')})")
         st.dataframe(labor[["PC Number", "Schedule_vs_Ideal_Var_%", "Schedule_vs_Actual_Var_%"]])
     else:
         st.info("No labor data available for the last 7 days.")

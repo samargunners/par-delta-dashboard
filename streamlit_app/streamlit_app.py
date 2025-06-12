@@ -35,7 +35,11 @@ def load_all_rows(table):
     chunk_size = 1000
     offset = 0
     while True:
-        response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+        try:
+            response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+        except Exception as e:
+            st.error(f"Error loading table '{table}': {e}")
+            break
         data_chunk = response.data
         if not data_chunk:
             break

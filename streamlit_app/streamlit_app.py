@@ -40,6 +40,8 @@ donut_resp = supabase.table("usage_donut_waste_and_gap_analysis") \
     .execute()
 
 donut_df = pd.DataFrame(donut_resp.data)
+st.write("Donut DataFrame shape:", donut_df.shape)
+st.write(donut_df.head())
 if not donut_df.empty:
     donut_grouped = donut_df.groupby("pc_number").agg(
         Calculated_Waste_7d_Avg=("calculated_waste", "mean"),
@@ -91,3 +93,8 @@ if not sched_df.empty and not ideal_df.empty and not actual_df.empty:
     st.dataframe(labor[["PC Number", "Schedule_vs_Ideal_Var_%", "Schedule_vs_Actual_Var_%"]])
 else:
     st.info("No labor data available for the last 7 days.")
+
+st.markdown("""
+---
+Live data is loaded from Supabase.
+""")

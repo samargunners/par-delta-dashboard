@@ -59,16 +59,20 @@ usage_df["date"] = pd.to_datetime(usage_df["date"], errors="coerce").dt.date
 usage_df["pc_number"] = usage_df["pc_number"].astype(str).str.strip().str.zfill(6)
 usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
 
+# --- Find latest date in both tables ---
+latest_sales_date = sales_df["date"].max()
+latest_usage_date = usage_df["date"].max()
+rolling_end_date = min(latest_sales_date, latest_usage_date)
+rolling_start_date = rolling_end_date - timedelta(days=7)
+
 # --- Filter for last 7 days and only donuts ---
-today = datetime.now().date()
-seven_days_ago = today - timedelta(days=7)
 donut_sales = sales_df[
     (sales_df["product_type"].str.contains("donut", na=False)) &
-    (sales_df["date"] >= seven_days_ago) & (sales_df["date"] < today)
+    (sales_df["date"] > rolling_start_date) & (sales_df["date"] <= rolling_end_date)
 ]
 usage_donuts = usage_df[
     (usage_df["product_type"].str.contains("donut", na=False)) &
-    (usage_df["date"] >= seven_days_ago) & (usage_df["date"] < today)
+    (usage_df["date"] > rolling_start_date) & (usage_df["date"] <= rolling_end_date)
 ]
 
 # --- Aggregate sales by date and pc_number ---
@@ -136,7 +140,41 @@ if not sched_df.empty and not ideal_df.empty and not actual_df.empty:
 else:
     st.info("No labor data available for the last 7 days.")
 
-st.markdown("""
----
-Live data is loaded from Supabase.
-""")
+# --- For Labor Overview, do the same logic for all three tables ---
+def get_latest_date(df):
+    if not df.empty:
+        return df["date"].max()
+    return None
+
+# Load labor tables
+sched_df = pd.DataFrame(supabase.table("schedule_table_labor").select("pc_number, scheduled_hours, date").execute().data)
+ideal_df = pd.DataFrame(supabase.table("ideal_table_labor").select("pc_number, ideal_hours, date").execute().data)
+actual_df = pd.DataFrame(supabase.table("actual_table_labor").select("pc_number, actual_hours, date").execute().data)
+
+# Find the earliest latest date among the three
+dates = [get_latest_date(sched_df), get_latest_date(ideal_df), get_latest_date(actual_df)]
+dates = [d for d in dates if d is not None]
+if dates:
+    labor_rolling_end = min(dates)
+    labor_rolling_start = labor_rolling_end - timedelta(days=7)
+
+    sched_df = sched_df[(sched_df["date"] > labor_rolling_start) & (sched_df["date"] <= labor_rolling_end)]
+    ideal_df = ideal_df[(ideal_df["date"] > labor_rolling_start) & (ideal_df["date"] <= labor_rolling_end)]
+    actual_df = actual_df[(actual_df["date"] > labor_rolling_start) & (actual_df["date"] <= labor_rolling_end)]
+
+    # Merge and calculate variances
+    if not sched_df.empty and not ideal_df.empty and not actual_df.empty:
+        sched_sum = sched_df.groupby("pc_number")["scheduled_hours"].sum().reset_index()
+        ideal_sum = ideal_df.groupby("pc_number")["ideal_hours"].sum().reset_index()
+        actual_sum = actual_df.groupby("pc_number")["actual_hours"].sum().reset_index()
+
+        labor = sched_sum.merge(ideal_sum, on="pc_number", how="outer").merge(actual_sum, on="pc_number", how="outer").fillna(0)
+        labor["Schedule_vs_Ideal_Var_%"] = ((labor["scheduled_hours"] - labor["ideal_hours"]) / labor["ideal_hours"].replace(0, 1)) * 100
+        labor["Schedule_vs_Actual_Var_%"] = ((labor["scheduled_hours"] - labor["actual_hours"]) / labor["actual_hours"].replace(0, 1)) * 100
+        labor.rename(columns={"pc_number": "PC Number"}, inplace=True)
+        st.subheader("⏱️ Labor Overview (Last 7 Days Rolling Total)")
+        st.dataframe(labor[["PC Number", "Schedule_vs_Ideal_Var_%", "Schedule_vs_Actual_Var_%"]])
+    else:
+        st.info("No labor data available for the last 7 days.")
+
+

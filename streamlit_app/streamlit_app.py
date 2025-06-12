@@ -28,35 +28,73 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
+# --- Load Data for Home Page Overview ---
+@st.cache_data(ttl=3600)
+def load_all_rows(table):
+    all_data = []
+    chunk_size = 1000
+    offset = 0
+    while True:
+        response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+        data_chunk = response.data
+        if not data_chunk:
+            break
+        all_data.extend(data_chunk)
+        offset += chunk_size
+    return pd.DataFrame(all_data)
+
+sales_df = load_all_rows("donut_sales_hourly")
+usage_df = load_all_rows("usage_overview")
+
+# --- Preprocessing ---
+sales_df["date"] = pd.to_datetime(sales_df["date"], errors="coerce").dt.date
+sales_df["pc_number"] = sales_df["pc_number"].astype(str).str.strip().str.zfill(6)
+sales_df["product_type"] = sales_df["product_type"].astype(str).str.lower()
+
+usage_df["date"] = pd.to_datetime(usage_df["date"], errors="coerce").dt.date
+usage_df["pc_number"] = usage_df["pc_number"].astype(str).str.strip().str.zfill(6)
+usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
+
+# --- Filter for last 7 days and only donuts ---
+today = datetime.now().date()
+seven_days_ago = today - timedelta(days=7)
+donut_sales = sales_df[
+    (sales_df["product_type"].str.contains("donut", na=False)) &
+    (sales_df["date"] >= seven_days_ago) & (sales_df["date"] < today)
+]
+usage_donuts = usage_df[
+    (usage_df["product_type"].str.contains("donut", na=False)) &
+    (usage_df["date"] >= seven_days_ago) & (usage_df["date"] < today)
+]
+
+# --- Aggregate sales by date and pc_number ---
+sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
+
+# --- Merge and calculate ---
+merged = pd.merge(usage_donuts, sales_summary, on=["date", "pc_number"], how="left")
+merged["SalesQty"] = merged["SalesQty"].fillna(0)
+merged["CalculatedWaste"] = merged["ordered_qty"] - merged["SalesQty"]
+merged["Gap"] = merged["CalculatedWaste"] - merged["wasted_qty"]
+
+# --- Rolling 7-day averages per pc_number ---
+donut_overview = merged.groupby("pc_number").agg(
+    Calculated_Waste_7d_Avg=("CalculatedWaste", "mean"),
+    Recorded_Waste_7d_Avg=("wasted_qty", "mean"),
+    Gap=("Gap", "mean")
+).reset_index()
+donut_overview.rename(columns={"pc_number": "PC Number"}, inplace=True)
+
+st.subheader("🍩 Donut Overview (Last 7 Days Rolling Avg)")
+st.dataframe(donut_overview[["PC Number", "Calculated_Waste_7d_Avg", "Recorded_Waste_7d_Avg", "Gap"]])
+
 # --- Rolling 7-day window ---
 today = datetime.now().date()
 seven_days_ago = today - timedelta(days=7)
 
-# --- Donut Overview Table ---
-donut_resp = supabase.table("usage_donut_waste_and_gap_analysis") \
-    .select("pc_number, calculated_waste, recorded_waste, date") \
-    .gte("date", seven_days_ago.isoformat()) \
-    .lt("date", today.isoformat()) \
-    .execute()
-
-donut_df = pd.DataFrame(donut_resp.data)
-st.write("Donut DataFrame shape:", donut_df.shape)
-st.write(donut_df.head())
-if not donut_df.empty:
-    donut_grouped = donut_df.groupby("pc_number").agg(
-        Calculated_Waste_7d_Avg=("calculated_waste", "mean"),
-        Recorded_Waste_7d_Avg=("recorded_waste", "mean")
-    ).reset_index()
-    donut_grouped["Gap"] = donut_grouped["Calculated_Waste_7d_Avg"] - donut_grouped["Recorded_Waste_7d_Avg"]
-    donut_grouped.rename(columns={"pc_number": "PC Number"}, inplace=True)
-    st.subheader("🍩 Donut Overview (Last 7 Days Rolling Avg)")
-    st.dataframe(donut_grouped[["PC Number", "Calculated_Waste_7d_Avg", "Recorded_Waste_7d_Avg", "Gap"]])
-else:
-    st.info("No donut waste data available for the last 7 days.")
 
 # --- Labor Overview Table ---
 # Schedule
-sched_resp = supabase.table("schedule_table_labour") \
+sched_resp = supabase.table("schedule_table_labor") \
     .select("pc_number, scheduled_hours, date") \
     .gte("date", seven_days_ago.isoformat()) \
     .lt("date", today.isoformat()) \
@@ -64,7 +102,7 @@ sched_resp = supabase.table("schedule_table_labour") \
 sched_df = pd.DataFrame(sched_resp.data)
 
 # Ideal
-ideal_resp = supabase.table("ideal_table_labour") \
+ideal_resp = supabase.table("ideal_table_labor") \
     .select("pc_number, ideal_hours, date") \
     .gte("date", seven_days_ago.isoformat()) \
     .lt("date", today.isoformat()) \
@@ -72,7 +110,7 @@ ideal_resp = supabase.table("ideal_table_labour") \
 ideal_df = pd.DataFrame(ideal_resp.data)
 
 # Actual
-actual_resp = supabase.table("actual_table_labour") \
+actual_resp = supabase.table("actual_table_labor") \
     .select("pc_number, actual_hours, date") \
     .gte("date", seven_days_ago.isoformat()) \
     .lt("date", today.isoformat()) \

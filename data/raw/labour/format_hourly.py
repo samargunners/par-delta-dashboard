@@ -29,6 +29,10 @@ df_melted = df.melt(
     value_name="Value"
 )
 
+# === ✅ Step 6.5: Clean '--' values ===
+df_melted["Value"] = df_melted["Value"].replace(['--', '—', '–', '―', '‑', '‒', '−'], 0)
+df_melted["Value"] = pd.to_numeric(df_melted["Value"], errors="coerce").fillna(0)
+
 # === Step 7: Extract Store Code & Metric from Flattened Column ===
 df_melted[["Location Code", "Metric"]] = df_melted["Store_Metric"].str.split("__", expand=True)
 

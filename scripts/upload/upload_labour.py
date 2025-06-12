@@ -2,92 +2,52 @@ import pandas as pd
 from datetime import datetime, timedelta
 from supabase_client import supabase
 
-def get_reporting_weeks(reference_date=None):
-    today = reference_date or datetime.today()
-    start_of_week = today - timedelta(days=today.weekday())
-    last_week = start_of_week - timedelta(days=7)
-    next_week = start_of_week + timedelta(days=7)
-    return {
-        "last": (last_week, last_week + timedelta(days=6)),
-        "current": (start_of_week, start_of_week + timedelta(days=6)),
-        "next": (next_week, next_week + timedelta(days=6)),
-    }
-
-def clean_dataframe(df):
-    # Replace dashes and blank strings with pd.NA
-    df.replace(to_replace=[r"^['’]?\s*[-‒–—]+\s*$"], value=pd.NA, regex=True, inplace=True)
-
-    for col in df.columns:
-        if pd.api.types.is_datetime64_any_dtype(df[col]) or pd.api.types.is_timedelta64_dtype(df[col]):
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime("%Y-%m-%d")
-        elif df[col].dtype == "object":
-            df[col] = df[col].astype(str).str.strip()
-            df[col] = df[col].replace(r"^\s*$", pd.NA, regex=True)
-        elif pd.api.types.is_numeric_dtype(df[col]):
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Replace pd.NA/NaN with None for Supabase compatibility
+# === Clean and prepare DataFrame ===
+def clean_for_supabase(df):
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    df["pc_number"] = df["pc_number"].astype(str)
     df = df.astype(object).where(pd.notnull(df), None)
     return df
 
-def upsert_dataframe(df, table_name):
+# === Batched upsert ===
+def batch_upsert(df, table_name, batch_size=500):
     records = df.to_dict(orient="records")
-    records = [r for r in records if isinstance(r, dict) and any(r.values())]
+    total = len(records)
+    print(f"\n📦 Uploading {total} records to '{table_name}' in batches of {batch_size}...")
 
-    print(f"✅ Prepared {len(records)} records for upsert to {table_name}")
-
-    for i, record in enumerate(records):
+    for i in range(0, total, batch_size):
+        batch = records[i:i + batch_size]
         try:
-            supabase.table(table_name).upsert(record).execute()
+            supabase.table(table_name).upsert(batch).execute()
+            print(f"✅ Uploaded records {i+1} to {i+len(batch)}")
         except Exception as e:
-            print(f"❌ Error upserting record {i+1}: {e}")
-            print("⛔ Record content:", record)
-            continue
+            print(f"❌ Error uploading records {i+1} to {i+len(batch)}: {e}")
 
-def upload_labor_data_weekly(file_path):
-    labor_df = pd.read_excel(file_path)
-    labor_df.columns = labor_df.columns.str.strip().str.lower().str.replace(" ", "_")
-    labor_df["date"] = pd.to_datetime(labor_df["date"], errors="coerce")
-    labor_df["pc_number"] = labor_df["pc_number"].astype(str)
+# === Main upload function ===
+def upload_cleaned_labor_data(file_path):
+    df = pd.read_excel(file_path)
+    df = clean_for_supabase(df)
 
-    weeks = get_reporting_weeks()
-    update_fields = ["scheduled_hours", "actual_hours", "actual_labor", "sales_value", "check_count", "sales_per_labor_hour"]
+    # Define table-specific column sets
+    ideal_cols = ["pc_number", "date", "hour_range", "forecasted_checks", "forecasted_sales", "ideal_hours"]
+    schedule_cols = ["pc_number", "date", "hour_range", "scheduled_hours"]
+    actual_cols = [
+        "pc_number", "date", "hour_range",
+        "actual_hours", "actual_labor", "sales_value",
+        "check_count", "sales_per_labor_hour"
+    ]
 
-    for label, (start_date, end_date) in weeks.items():
-        week_df = labor_df[(labor_df["date"] >= start_date) & (labor_df["date"] <= end_date)].copy()
-        cleaned = clean_dataframe(week_df)
+    # Subset DataFrames
+    ideal_df = df[ideal_cols]
+    schedule_df = df[schedule_cols]
+    actual_df = df[actual_cols]
 
-        if label != "last":
-            response = supabase.table("hourly_labor_summary") \
-                .select("*") \
-                .gte("date", start_date.strftime("%Y-%m-%d")) \
-                .lte("date", end_date.strftime("%Y-%m-%d")) \
-                .execute()
-            existing_df = pd.DataFrame(response.data)
+    # Batched uploads
+    batch_upsert(ideal_df, "ideal_table_labor")
+    batch_upsert(schedule_df, "schedule_table_labor")
+    batch_upsert(actual_df, "actual_table_labor")
 
-            if not existing_df.empty:
-                merged = pd.merge(
-                    cleaned,
-                    existing_df,
-                    on=["pc_number", "date", "hour_range"],
-                    suffixes=("", "_existing"),
-                    how="left"
-                )
-
-                for field in update_fields:
-                    existing_field = f"{field}_existing"
-                    merged[field] = merged.apply(
-                        lambda row: row[field] if pd.isna(row[existing_field]) or row[existing_field] in [0, None] else row[existing_field],
-                        axis=1
-                    )
-
-                final_df = merged[cleaned.columns]
-            else:
-                final_df = cleaned
-        else:
-            final_df = cleaned
-
-        upsert_dataframe(final_df, "hourly_labor_summary")
-
-# === Usage ===
-upload_labor_data_weekly("data/processed/hourly_labor_summary.xlsx")
+# === Entry point ===
+if __name__ == "__main__":
+    upload_cleaned_labor_data("/Users/samarpatel/Desktop/samar/Dunkin/par-delta-dashboard/data/processed/hourly_labor_summary.xlsx")

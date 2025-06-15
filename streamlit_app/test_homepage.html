@@ -1,0 +1,118 @@
+<ctrl42>call_tool [ {"tool_name": "write_file", "tool_args": { "path": "index.html", "content": """<!DOCTYPE html>
+
+<html lang=\"en\"> <head> <meta charset=\"UTF-8\" /> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" /> <title>Dunkin' Operations Dashboard</title> <meta name=\"description\" content=\"Dunkin' Donuts Data Analysis and Automation Project\" /> <meta name=\"author\" content=\"Lovable\" />
+<meta property=\"og:title\" content=\"Dunkin' Operations Dashboard\" />
+<meta property=\"og:description\" content=\"Dunkin' Donuts Data Analysis and Automation Project\" />
+<meta property=\"og:type\" content=\"website\" />
+<meta property=\"og:image\" content=\"https://lovable.dev/opengraph-image-p98pqg.png\" />
+
+<meta name=\"twitter:card\" content=\"summary_large_image\" />
+<meta name=\"twitter:site\" content=\"@lovable_dev\" />
+<meta name=\"twitter:image\" content=\"https://lovable.dev/opengraph-image-p98pqg.png\" />
+</head> <body> <div id=\"root\"></div> <script type=\"module\" src=\"/src/main.tsx\"></script> </body> </html> """ }}, {"tool_name": "search_replace_file", "tool_args": { "path": "src/index.css", "search": """@layer base { :root { --background: 0 0% 100%; --foreground: 222.2 84% 4.9%;
+--card: 0 0% 100%;
+--card-foreground: 222.2 84% 4.9%;
+
+--popover: 0 0% 100%;
+--popover-foreground: 222.2 84% 4.9%;
+
+--primary: 222.2 47.4% 11.2%;
+--primary-foreground: 210 40% 98%;
+
+--secondary: 210 40% 96.1%;
+--secondary-foreground: 222.2 47.4% 11.2%;
+
+--muted: 210 40% 96.1%;
+--muted-foreground: 215.4 16.3% 46.9%;
+
+--accent: 210 40% 96.1%;
+--accent-foreground: 222.2 47.4% 11.2%;
+
+--destructive: 0 84.2% 60.2%;
+--destructive-foreground: 210 40% 98%;
+
+--border: 214.3 31.8% 91.4%;
+--input: 214.3 31.8% 91.4%;
+--ring: 222.2 84% 4.9%;
+
+--radius: 0.5rem;
+
+--sidebar-background: 0 0% 98%;
+
+--sidebar-foreground: 240 5.3% 26.1%;
+
+--sidebar-primary: 240 5.9% 10%;
+
+--sidebar-primary-foreground: 0 0% 98%;
+
+--sidebar-accent: 240 4.8% 95.9%;
+
+--sidebar-accent-foreground: 240 5.9% 10%;
+
+--sidebar-border: 220 13% 91%;
+
+--sidebar-ring: 217.2 91.2% 59.8%;
+}
+
+.dark { --background: 222.2 84% 4.9%; --foreground: 210 40% 98%;
+
+--card: 222.2 84% 4.9%;
+--card-foreground: 210 40% 98%;
+
+--popover: 222.2 84% 4.9%;
+--popover-foreground: 210 40% 98%;
+
+--primary: 210 40% 98%;
+--primary-foreground: 222.2 47.4% 11.2%;
+
+--secondary: 217.2 32.6% 17.5%;
+--secondary-foreground: 210 40% 98%;
+
+--muted: 217.2 32.6% 17.5%;
+--muted-foreground: 215 20.2% 65.1%;
+
+--accent: 217.2 32.6% 17.5%;
+--accent-foreground: 210 40% 98%;
+
+--destructive: 0 62.8% 30.6%;
+--destructive-foreground: 210 40% 98%;
+
+--border: 217.2 32.6% 17.5%;
+--input: 217.2 32.6% 17.5%;
+--ring: 212.7 26.8% 83.9%;
+--sidebar-background: 240 5.9% 10%;
+--sidebar-foreground: 240 4.8% 95.9%;
+--sidebar-primary: 224.3 76.3% 48%;
+--sidebar-primary-foreground: 0 0% 100%;
+--sidebar-accent: 240 3.7% 15.9%;
+--sidebar-accent-foreground: 240 4.8% 95.9%;
+--sidebar-border: 240 3.7% 15.9%;
+--sidebar-ring: 217.2 91.2% 59.8%;
+} }""", "replace": """@layer base { :root { --background: 220 50% 98%; --foreground: 222.2 84% 4.9%; --card: 0 0% 100%; --card-foreground: 222.2 84% 4.9%; --popover: 0 0% 100%; --popover-foreground: 222.2 84% 4.9%; --primary: 21 100% 60%; --primary-foreground: 0 0% 100%; --secondary: 328 100% 45%; --secondary-foreground: 0 0% 100%; --muted: 210 40% 96.1%; --muted-foreground: 215.4 16.3% 46.9%; --accent: 21 100% 96.1%; --accent-foreground: 21 100% 60%; --destructive: 0 84.2% 60.2%; --destructive-foreground: 210 40% 98%; --border: 214.3 31.8% 91.4%; --input: 214.3 31.8% 91.4%; --ring: 21 100% 60%; --radius: 0.8rem; }
+
+.dark { /* For now, we'll use the same theme for dark mode, can be customized later */ --background: 220 50% 98%; --foreground: 222.2 84% 4.9%; --card: 0 0% 100%; --card-foreground: 222.2 84% 4.9%; --popover: 0 0% 100%; --popover-foreground: 222.2 84% 4.9%; --primary: 21 100% 60%; --primary-foreground: 0 0% 100%; --secondary: 328 100% 45%; --secondary-foreground: 0 0% 100%; --muted: 210 40% 96.1%; --muted-foreground: 215.4 16.3% 46.9%; --accent: 21 100% 96.1%; --accent-foreground: 21 100% 60%; --destructive: 0 84.2% 60.2%; --destructive-foreground: 210 40% 98%; --border: 214.3 31.8% 91.4%; --input: 214.3 31.8% 91.4%; --ring: 21 100% 60%; } }""" }}, {"tool_name": "search_replace_file", "tool_args": { "path": "tailwind.config.ts", "search": """ sidebar: { DEFAULT: 'hsl(var(--sidebar-background))', foreground: 'hsl(var(--sidebar-foreground))', primary: 'hsl(var(--sidebar-primary))', 'primary-foreground': 'hsl(var(--sidebar-primary-foreground))', accent: 'hsl(var(--sidebar-accent))', 'accent-foreground': 'hsl(var(--sidebar-accent-foreground))', border: 'hsl(var(--sidebar-border))', ring: 'hsl(var(--sidebar-ring))' }""", "replace": "" }}, {"tool_name": "write_file", "tool_args": { "path": "src/App.css", "content": "" }}, {"tool_name": "write_file", "tool_args": { "path": "src/components/InsightCard.tsx", "content": """import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; import { LucideProps } from "lucide-react";
+
+interface InsightCardProps { title: string; metric: string; description: string; icon: React.ComponentType<LucideProps>; }
+
+export const InsightCard: React.FC<InsightCardProps> = ({ title, metric, description, icon: Icon }) => ( <Card> <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"> <CardTitle className="text-sm font-medium">{title}</CardTitle> <Icon className="h-4 w-4 text-muted-foreground" /> </CardHeader> <CardContent> <div className="text-2xl font-bold">{metric}</div> <p className="text-xs text-muted-foreground">{description}</p> </CardContent> </Card> ); """ }}, {"tool_name": "write_file", "tool_args": { "path": "src/pages/Index.tsx", "content": """import { Button } from "@/components/ui/button"; import { InsightCard } from "@/components/InsightCard"; import { AreaChart, Clock, Package, Thermometer, Trash2 } from "lucide-react";
+
+const Index = () => { const insights = [ { title: "Sales Trends", metric: "$12,345", description: "+20.1% from last month", icon: AreaChart, }, { title: "Labor Punctuality", metric: "98.2%", description: "-0.5% from last week", icon: Clock, }, { title: "Donut Waste", metric: "-15 Units", description: "Improved from 25 units yesterday", icon: Trash2, }, { title: "Inventory Variance", metric: "-1.8%", description: "Target is < 2%", icon: Package, }, { title: "Freezer Temp", metric: "-5°F", description: "Stable within the safe range", icon: Thermometer, }, ];
+
+return ( <div className="min-h-screen bg-background text-foreground"> <div className="container mx-auto px-4 py-8"> <header className="flex items-center justify-between mb-8"> <div> <h1 className="text-3xl font-bold"> Dunkin' Operations <span className="text-primary">Dashboard</span> </h1> <p className="text-muted-foreground"> Real-time insights for store managers. </p> </div> <Button size="lg"> Submit Donut Count </Button> </header>
+
+    <main className=\"grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5\">
+      {insights.map((insight) => (
+        <InsightCard
+          key={insight.title}
+          title={insight.title}
+          metric={insight.metric}
+          description={insight.description}
+          icon={insight.icon}
+        />
+      ))}
+    </main>
+  </div>
+</div>
+); };
+
+export default Index; """ }} ]

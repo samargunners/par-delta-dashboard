@@ -127,7 +127,7 @@ if not top_value_variance.empty:
         y="product_name",
         orientation="h",
         labels={"variance": "Variance $", "product_name": "Product Name"},
-        title="Top 10 Variance by $",
+        title="Top 10 Variance by $",   
         color="variance",
         color_continuous_scale="Oranges",
         hover_data=["reporting_period", "variance"]

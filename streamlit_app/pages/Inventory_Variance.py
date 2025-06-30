@@ -109,7 +109,7 @@ if not top_qty_variance.empty:
         title="Top 10 Variance by Quantity",
         color="qty_variance",
         color_continuous_scale="Blues",
-        hover_data=["reporting_period", "qty_variance"]
+        hover_data=["reporting_period", "qty_variance","variance"]
     )
     st.plotly_chart(fig1, use_container_width=True)
 else:

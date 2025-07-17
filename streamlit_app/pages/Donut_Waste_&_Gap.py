@@ -12,7 +12,7 @@ supabase = create_client(url, key)
 st.set_page_config(page_title="Donut Waste & Gap", layout="wide")
 st.title("🍩 Donut Waste & Gap Analysis")
 
-# --- Data Fetching Function ---
+# --- Data Fetching Function with Debug Info ---
 @st.cache_data(ttl=3600)
 def load_all_rows(table):
     all_data = []
@@ -20,10 +20,12 @@ def load_all_rows(table):
     offset = 0
     while True:
         response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
-        data_chunk = response.data
-        if not data_chunk:
+        if response.error:
+            st.error(f"Supabase Error loading `{table}`: {response.error}")
+            return pd.DataFrame()
+        if response.data is None or len(response.data) == 0:
             break
-        all_data.extend(data_chunk)
+        all_data.extend(response.data)
         offset += chunk_size
     return pd.DataFrame(all_data)
 
@@ -31,13 +33,21 @@ def load_all_rows(table):
 sales_df = load_all_rows("donut_sales_hourly")
 usage_df = load_all_rows("usage_overview")
 
-# --- RLS and Data Safety Checks ---
-if sales_df.empty or "date" not in sales_df.columns or "pc_number" not in sales_df.columns:
-    st.warning("No sales data available. This may be due to RLS restrictions or missing data.")
+# --- Debug Info ---
+st.sidebar.subheader("🛠 Debug Info")
+st.sidebar.write("Sales rows loaded:", len(sales_df))
+st.sidebar.write("Usage rows loaded:", len(usage_df))
+
+# --- Check Critical Columns for RLS issues ---
+critical_sales_cols = {"date", "pc_number", "product_type", "quantity", "time"}
+critical_usage_cols = {"date", "pc_number", "product_type", "ordered_qty", "wasted_qty"}
+
+if sales_df.empty or not critical_sales_cols.issubset(sales_df.columns):
+    st.error("❌ Sales data is missing or incomplete. This may be due to RLS restrictions or table issues.")
     st.stop()
 
-if usage_df.empty or "date" not in usage_df.columns or "pc_number" not in usage_df.columns:
-    st.warning("No usage data available. This may be due to RLS restrictions or missing data.")
+if usage_df.empty or not critical_usage_cols.issubset(usage_df.columns):
+    st.error("❌ Usage data is missing or incomplete. This may be due to RLS restrictions or table issues.")
     st.stop()
 
 # --- Preprocessing ---

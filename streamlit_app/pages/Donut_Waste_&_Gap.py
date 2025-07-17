@@ -20,26 +20,28 @@ def load_all_rows(table):
     offset = 0
     while True:
         response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
-
-        st.sidebar.write(f"Chunk from `{table}` at offset {offset}:", response.data)
-
         data_chunk = response.data
         if not data_chunk:
             break
         all_data.extend(data_chunk)
         offset += chunk_size
-
-    df = pd.DataFrame(all_data)
-    st.sidebar.write(f"Loaded DataFrame for `{table}`:", df.head())
-    st.sidebar.write("Final columns:", df.columns.tolist())
-    return df
-
+    return pd.DataFrame(all_data)
 
 # --- Load Data ---
 sales_df = load_all_rows("donut_sales_hourly")
-st.sidebar.write("Sales column names:", sales_df.columns.tolist())
-st.sidebar.write("First 5 rows:", sales_df.head())
 usage_df = load_all_rows("usage_overview")
+
+# --- Validate expected columns ---
+required_sales_cols = {"date", "pc_number", "time", "product_type", "quantity"}
+required_usage_cols = {"date", "pc_number", "product_type", "ordered_qty", "wasted_qty"}
+
+if not required_sales_cols.issubset(sales_df.columns):
+    st.error("❌ Sales data missing required columns. Please check Supabase schema.")
+    st.stop()
+
+if not required_usage_cols.issubset(usage_df.columns):
+    st.error("❌ Usage data missing required columns. Please check Supabase schema.")
+    st.stop()
 
 # --- Preprocessing ---
 sales_df["date"] = pd.to_datetime(sales_df["date"], errors="coerce").dt.date
@@ -58,10 +60,9 @@ min_date = min(sales_df["date"].min(), usage_df["date"].min())
 max_date = max(sales_df["date"].max(), usage_df["date"].max())
 date_range = st.date_input("Select Date Range", [min_date, max_date])
 
-# --- Apply Initial Filters ---
+# --- Apply Filters ---
 donut_sales = sales_df[sales_df["product_type"].str.contains("donut", na=False)]
 sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
-
 usage_donuts = usage_df[usage_df["product_type"].str.contains("donut", na=False)]
 
 if location_filter != "All":
@@ -89,38 +90,44 @@ st.dataframe(merged)
 
 # --- Graph 1: Ordered, Sales, Waste Trend ---
 st.subheader("📈 Donut Ordered, Sold, and Waste Trend")
-pivot1 = merged.groupby("date").agg({
-    "ordered_qty": "sum",
-    "SalesQty": "sum",
-    "wasted_qty": "sum"
-}).reset_index()
+if not merged.empty:
+    pivot1 = merged.groupby("date").agg({
+        "ordered_qty": "sum",
+        "SalesQty": "sum",
+        "wasted_qty": "sum"
+    }).reset_index()
 
-fig1 = px.line(
-    pivot1, x="date",
-    y=["ordered_qty", "SalesQty", "wasted_qty"],
-    labels={"value": "Quantity", "date": "Date", "variable": "Metric"},
-    title="Ordered Qty, Sales Qty, and Waste Over Time",
-    markers=True
-)
-fig1.update_traces(mode="lines+markers", hovertemplate='%{y}')
-st.plotly_chart(fig1, use_container_width=True)
+    fig1 = px.line(
+        pivot1, x="date",
+        y=["ordered_qty", "SalesQty", "wasted_qty"],
+        labels={"value": "Quantity", "date": "Date", "variable": "Metric"},
+        title="Ordered Qty, Sales Qty, and Waste Over Time",
+        markers=True
+    )
+    fig1.update_traces(mode="lines+markers", hovertemplate='%{y}')
+    st.plotly_chart(fig1, use_container_width=True)
+else:
+    st.info("No data available for the selected filters to display trend.")
 
 # --- Graph 2: Gap Trend ---
 st.subheader("📉 Donut Waste Gap Analysis Trend")
-pivot2 = merged.groupby("date").agg({
-    "CalculatedWaste": "sum",
-    "wasted_qty": "sum"
-}).reset_index()
-pivot2["Gap"] = pivot2["CalculatedWaste"] - pivot2["wasted_qty"]
+if not merged.empty:
+    pivot2 = merged.groupby("date").agg({
+        "CalculatedWaste": "sum",
+        "wasted_qty": "sum"
+    }).reset_index()
+    pivot2["Gap"] = pivot2["CalculatedWaste"] - pivot2["wasted_qty"]
 
-fig2 = px.line(
-    pivot2, x="date", y="Gap",
-    labels={"Gap": "Gap (Expected Waste - Actual Waste)", "date": "Date"},
-    title="Gap Analysis Over Time",
-    markers=True
-)
-fig2.update_traces(mode="lines+markers", hovertemplate='Gap: %{y}')
-st.plotly_chart(fig2, use_container_width=True)
+    fig2 = px.line(
+        pivot2, x="date", y="Gap",
+        labels={"Gap": "Gap (Expected Waste - Actual Waste)", "date": "Date"},
+        title="Gap Analysis Over Time",
+        markers=True
+    )
+    fig2.update_traces(mode="lines+markers", hovertemplate='Gap: %{y}')
+    st.plotly_chart(fig2, use_container_width=True)
+else:
+    st.info("No data available to compute waste gap trend.")
 
 # --- Graph 3: Hourly Donut Count ---
 st.subheader("⏰ Hourly Donut Count (Select Store & Date)")

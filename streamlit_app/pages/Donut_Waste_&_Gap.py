@@ -14,12 +14,12 @@ st.title("🍩 Donut Waste & Gap Analysis")
 
 # --- Data Fetching Function ---
 @st.cache_data(ttl=3600)
-def load_all_rows(table):
+def load_all_rows(table, columns="*"):
     all_data = []
     chunk_size = 1000
     offset = 0
     while True:
-        response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+        response = supabase.table(table).select(columns).range(offset, offset + chunk_size - 1).execute()
         data_chunk = response.data
         if not data_chunk:
             break
@@ -28,7 +28,10 @@ def load_all_rows(table):
     return pd.DataFrame(all_data)
 
 # --- Load Data ---
-sales_df = load_all_rows("donut_sales_hourly")
+sales_df = load_all_rows(
+    "donut_sales_hourly",
+    columns="date,pc_number,time,product_type,quantity,product_name"
+)
 usage_df = load_all_rows("usage_overview")
 
 # --- Validate expected columns ---

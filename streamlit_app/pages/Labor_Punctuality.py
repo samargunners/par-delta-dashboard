@@ -116,7 +116,114 @@ store_map = dict(zip(stores_df["pc_number"], stores_df["store_name"]))
 report["location"] = report["pc_number"].map(store_map)
 report.drop(columns="pc_number", inplace=True)
 
+# --- Enhanced Employee Punctuality Table ---
 st.subheader("📋 Employee Punctuality Summary")
+
+# Calculate punctuality metrics
+detailed_report = summary.groupby(["employee_id", "employee_name", "pc_number"]).agg(
+    days_scheduled=("status", "count"),
+    times_on_time=("status", lambda x: (x == "On Time").sum()),
+    times_late=("status", lambda x: (x == "Late").sum()),
+    times_early=("status", lambda x: (x == "Early").sum()),
+    times_absent=("status", lambda x: (x == "Absent").sum()),
+    avg_late_minutes=("late_minutes", lambda x: round(x[x > 0].mean(), 2) if (x > 0).any() else 0)
+).reset_index()
+
+# Calculate punctuality percentage
+# Punctuality = (On Time + Early) / (On Time + Late + Early) * 100
+# Excludes absent days from the calculation
+detailed_report["attendance_days"] = (detailed_report["times_on_time"] + 
+                                    detailed_report["times_late"] + 
+                                    detailed_report["times_early"])
+detailed_report["punctuality_percentage"] = detailed_report.apply(
+    lambda row: round((row["times_on_time"] + row["times_early"]) / row["attendance_days"] * 100, 1) 
+    if row["attendance_days"] > 0 else 0, axis=1
+)
+
+# Add location mapping
+detailed_report["location"] = detailed_report["pc_number"].map(store_map)
+
+# Create display dataframe
+display_report = detailed_report[[
+    "employee_name", "location", "days_scheduled", "times_on_time", 
+    "times_late", "times_early", "times_absent", "punctuality_percentage", "avg_late_minutes"
+]].rename(columns={
+    "employee_name": "Employee Name",
+    "location": "Store Location",
+    "days_scheduled": "Days Scheduled",
+    "times_on_time": "Times On Time",
+    "times_late": "Times Late",
+    "times_early": "Times Early", 
+    "times_absent": "Times Absent",
+    "punctuality_percentage": "Punctuality %",
+    "avg_late_minutes": "Avg Late (mins)"
+})
+
+# Function to get color based on punctuality percentage
+def get_punctuality_color(percentage):
+    if percentage >= 95:
+        return "background-color: #d4edda; color: #155724"  # Green
+    elif percentage >= 90:
+        return "background-color: #c3e6cb; color: #155724"  # Light Green
+    elif percentage >= 85:
+        return "background-color: #fff3cd; color: #856404"  # Yellow
+    elif percentage >= 80:
+        return "background-color: #ffeaa7; color: #856404"  # Light Orange
+    elif percentage >= 75:
+        return "background-color: #fab1a0; color: #721c24"  # Orange
+    elif percentage >= 70:
+        return "background-color: #fdcb6e; color: #721c24"  # Dark Orange
+    else:
+        return "background-color: #f8d7da; color: #721c24"  # Red
+
+# Apply styling to the dataframe
+def style_punctuality_table(df):
+    def apply_color(row):
+        percentage = row["Punctuality %"]
+        color = get_punctuality_color(percentage)
+        return [color if col == "Employee Name" else "" for col in row.index]
+    
+    return df.style.apply(apply_color, axis=1).format({
+        "Punctuality %": "{:.1f}%",
+        "Avg Late (mins)": "{:.1f}"
+    })
+
+# Sort by punctuality percentage (worst first for attention)
+display_report_sorted = display_report.sort_values("Punctuality %", ascending=True)
+
+# Display the styled table
+styled_table = style_punctuality_table(display_report_sorted)
+st.dataframe(styled_table, use_container_width=True)
+
+# Add legend for color coding
+st.markdown("""
+**Color Legend:**
+- 🟢 **Green (95%+)**: Excellent punctuality
+- 🟢 **Light Green (90-94%)**: Very good punctuality  
+- 🟡 **Yellow (85-89%)**: Good punctuality
+- 🟠 **Light Orange (80-84%)**: Fair punctuality
+- 🟠 **Orange (75-79%)**: Poor punctuality
+- 🟠 **Dark Orange (70-74%)**: Very poor punctuality
+- 🔴 **Red (<70%)**: Critical punctuality issues
+""")
+
+# Display summary statistics
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    avg_punctuality = detailed_report["punctuality_percentage"].mean()
+    st.metric("Average Punctuality", f"{avg_punctuality:.1f}%")
+with col2:
+    best_employee = detailed_report.loc[detailed_report["punctuality_percentage"].idxmax(), "employee_name"]
+    best_percentage = detailed_report["punctuality_percentage"].max()
+    st.metric("Best Performer", f"{best_employee}", f"{best_percentage:.1f}%")
+with col3:
+    worst_employee = detailed_report.loc[detailed_report["punctuality_percentage"].idxmin(), "employee_name"]
+    worst_percentage = detailed_report["punctuality_percentage"].min()
+    st.metric("Needs Attention", f"{worst_employee}", f"{worst_percentage:.1f}%")
+with col4:
+    critical_count = len(detailed_report[detailed_report["punctuality_percentage"] < 70])
+    st.metric("Critical Cases", f"{critical_count} employees", "< 70%")
+
 st.dataframe(report)
 
 # --- On Time vs Late per Employee ---

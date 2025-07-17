@@ -1,0 +1,22 @@
+things that we need to change in this app
+
+
+1. change database settings for our inventory analysis.(check urgency/importance) 
+
+2. create individual pages for all store with important analysis. 
+
+3. instead  craate  individual  pages  for stores  and send  them  link. 
+
+4. Labour  scheudle -  
+    a. automate  daily update  of  hourly  sales  and  labour  data  to supabase. 
+    b. automate weekly  update  of  scheduled hours  and ideal  hours( make  sure  all  stores  are selecting template to  understand  ideal hours)
+    
+5.  employee roster changes. 
+    a. create a table with all employees, with their analysis of time and discipline.  
+    b. export lifetime to date  data about  
+        1. number of time on scheduled.
+        2. number of times on  time. 
+        3. number of times late. 
+        4.   number  of times absent.
+
+6. once all is done -  we need to give access to individual accounts. 

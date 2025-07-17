@@ -55,7 +55,7 @@ df = df[df["subcategory"].isin(selected_subcategories)]
 
 # --- Filters ---
 store_options = ["All"] + sorted(df["pc_number"].unique())
-period_options = ["All"] + sorted(df["reporting_period"].unique())
+period_options = ["All"] + sorted(df["reporting_period"].unique(), reverse=True)
 
 location_filter = st.selectbox("Select Store", store_options)
 reporting_period = st.selectbox("Select Reporting Period (Week)", period_options)
@@ -77,17 +77,11 @@ summary = df[[
     "product_name",
     "qty_variance",
     "variance",
-    "units_sold",
     "cogs",
-    "purchases_qty",
-    "purchases_value"
 ]].rename(columns={
     "qty_variance": "Variance Qty",
     "variance": "Variance $",
-    "units_sold": "Units Sold",
-    "cogs": "COGS $",
-    "purchases_qty": "Purchase Qty",
-    "purchases_value": "Purchase $"
+    "cogs": "COGS",
 })
 
 st.subheader("📋 Inventory Variance Summary")

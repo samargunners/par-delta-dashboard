@@ -20,12 +20,20 @@ def load_all_rows(table):
     offset = 0
     while True:
         response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
+
+        st.sidebar.write(f"Chunk from `{table}` at offset {offset}:", response.data)
+
         data_chunk = response.data
         if not data_chunk:
             break
         all_data.extend(data_chunk)
         offset += chunk_size
-    return pd.DataFrame(all_data)
+
+    df = pd.DataFrame(all_data)
+    st.sidebar.write(f"Loaded DataFrame for `{table}`:", df.head())
+    st.sidebar.write("Final columns:", df.columns.tolist())
+    return df
+
 
 # --- Load Data ---
 sales_df = load_all_rows("donut_sales_hourly")

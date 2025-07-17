@@ -29,6 +29,8 @@ def load_all_rows(table):
 
 # --- Load Data ---
 sales_df = load_all_rows("donut_sales_hourly")
+st.sidebar.write("Sales column names:", sales_df.columns.tolist())
+st.sidebar.write("First 5 rows:", sales_df.head())
 usage_df = load_all_rows("usage_overview")
 
 # --- Preprocessing ---

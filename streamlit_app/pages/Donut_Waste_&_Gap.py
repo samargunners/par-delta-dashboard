@@ -31,6 +31,15 @@ def load_all_rows(table):
 sales_df = load_all_rows("donut_sales_hourly")
 usage_df = load_all_rows("usage_overview")
 
+# --- RLS and Data Safety Checks ---
+if sales_df.empty or "date" not in sales_df.columns or "pc_number" not in sales_df.columns:
+    st.warning("No sales data available. This may be due to RLS restrictions or missing data.")
+    st.stop()
+
+if usage_df.empty or "date" not in usage_df.columns or "pc_number" not in usage_df.columns:
+    st.warning("No usage data available. This may be due to RLS restrictions or missing data.")
+    st.stop()
+
 # --- Preprocessing ---
 sales_df["date"] = pd.to_datetime(sales_df["date"], errors="coerce").dt.date
 sales_df["pc_number"] = sales_df["pc_number"].astype(str).str.strip().str.zfill(6)
@@ -51,7 +60,6 @@ date_range = st.date_input("Select Date Range", [min_date, max_date])
 # --- Apply Initial Filters ---
 donut_sales = sales_df[sales_df["product_type"].str.contains("donut", na=False)]
 sales_summary = donut_sales.groupby(["date", "pc_number"]).agg(SalesQty=("quantity", "sum")).reset_index()
-
 usage_donuts = usage_df[usage_df["product_type"].str.contains("donut", na=False)]
 
 if location_filter != "All":
@@ -79,38 +87,44 @@ st.dataframe(merged)
 
 # --- Graph 1: Ordered, Sales, Waste Trend ---
 st.subheader("📈 Donut Ordered, Sold, and Waste Trend")
-pivot1 = merged.groupby("date").agg({
-    "ordered_qty": "sum",
-    "SalesQty": "sum",
-    "wasted_qty": "sum"
-}).reset_index()
+if not merged.empty:
+    pivot1 = merged.groupby("date").agg({
+        "ordered_qty": "sum",
+        "SalesQty": "sum",
+        "wasted_qty": "sum"
+    }).reset_index()
 
-fig1 = px.line(
-    pivot1, x="date",
-    y=["ordered_qty", "SalesQty", "wasted_qty"],
-    labels={"value": "Quantity", "date": "Date", "variable": "Metric"},
-    title="Ordered Qty, Sales Qty, and Waste Over Time",
-    markers=True
-)
-fig1.update_traces(mode="lines+markers", hovertemplate='%{y}')
-st.plotly_chart(fig1, use_container_width=True)
+    fig1 = px.line(
+        pivot1, x="date",
+        y=["ordered_qty", "SalesQty", "wasted_qty"],
+        labels={"value": "Quantity", "date": "Date", "variable": "Metric"},
+        title="Ordered Qty, Sales Qty, and Waste Over Time",
+        markers=True
+    )
+    fig1.update_traces(mode="lines+markers", hovertemplate='%{y}')
+    st.plotly_chart(fig1, use_container_width=True)
+else:
+    st.info("No data available for the selected filters to display trend.")
 
 # --- Graph 2: Gap Trend ---
 st.subheader("📉 Donut Waste Gap Analysis Trend")
-pivot2 = merged.groupby("date").agg({
-    "CalculatedWaste": "sum",
-    "wasted_qty": "sum"
-}).reset_index()
-pivot2["Gap"] = pivot2["CalculatedWaste"] - pivot2["wasted_qty"]
+if not merged.empty:
+    pivot2 = merged.groupby("date").agg({
+        "CalculatedWaste": "sum",
+        "wasted_qty": "sum"
+    }).reset_index()
+    pivot2["Gap"] = pivot2["CalculatedWaste"] - pivot2["wasted_qty"]
 
-fig2 = px.line(
-    pivot2, x="date", y="Gap",
-    labels={"Gap": "Gap (Expected Waste - Actual Waste)", "date": "Date"},
-    title="Gap Analysis Over Time",
-    markers=True
-)
-fig2.update_traces(mode="lines+markers", hovertemplate='Gap: %{y}')
-st.plotly_chart(fig2, use_container_width=True)
+    fig2 = px.line(
+        pivot2, x="date", y="Gap",
+        labels={"Gap": "Gap (Expected Waste - Actual Waste)", "date": "Date"},
+        title="Gap Analysis Over Time",
+        markers=True
+    )
+    fig2.update_traces(mode="lines+markers", hovertemplate='Gap: %{y}')
+    st.plotly_chart(fig2, use_container_width=True)
+else:
+    st.info("No data available to compute waste gap trend.")
 
 # --- Graph 3: Hourly Donut Count ---
 st.subheader("⏰ Hourly Donut Count (Select Store & Date)")

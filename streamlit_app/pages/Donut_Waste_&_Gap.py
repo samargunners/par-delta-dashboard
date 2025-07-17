@@ -20,9 +20,15 @@ def load_all_rows(table):
     offset = 0
     while True:
         response = supabase.table(table).select("*").range(offset, offset + chunk_size - 1).execute()
-        if response.error:
-            st.error(f"Supabase Error loading `{table}`: {response.error}")
+        try:
+            data_chunk = response.data
+        except AttributeError:
+            st.error(f"Unexpected response format from Supabase when loading `{table}`.")
+            st.write("Raw response:", response)
             return pd.DataFrame()
+
+        if not data_chunk:
+            break
         if response.data is None or len(response.data) == 0:
             break
         all_data.extend(response.data)

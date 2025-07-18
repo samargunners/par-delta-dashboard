@@ -37,6 +37,12 @@ merged = actual_df.merge(ideal_df, on=["pc_number", "date", "hour_range"], how="
                   .merge(schedule_df, on=["pc_number", "date", "hour_range"], how="left")
 
 # --- Apply Filters ---
+# Create a copy for weekly summary (only location filter, no date filter)
+merged_for_weekly = merged.copy()
+if location_filter != "All":
+    merged_for_weekly = merged_for_weekly[merged_for_weekly["pc_number"] == location_filter]
+
+# Apply filters to main merged data (for daily summary and charts)
 if location_filter != "All":
     merged = merged[merged["pc_number"] == location_filter]
 
@@ -57,9 +63,18 @@ daily_summary["actual_labor_pct_sales"] = (
     daily_summary["actual_labor"] / daily_summary["sales_value"]
 ) * 100
 
+# --- Debug: Check daily summary range ---
+st.write(f"Daily summary range: {daily_summary['date'].min()} to {daily_summary['date'].max()}")
+st.write(f"Daily summary records: {len(daily_summary)}")
+
+# --- Debug: Check data range ---
+st.write("Debug Info:")
+st.write(f"Date range in merged data: {merged['date'].min()} to {merged['date'].max()}")
+st.write(f"Total records: {len(merged)}")
+
 # --- Weekly Summary ---
-merged["week"] = pd.to_datetime(merged["date"])
-weekly_summary = merged.groupby(pd.Grouper(key="week", freq="W-SAT")).agg(
+merged_for_weekly["week"] = pd.to_datetime(merged_for_weekly["date"])
+weekly_summary = merged_for_weekly.groupby(pd.Grouper(key="week", freq="W-SAT")).agg(
     ideal_hours=("ideal_hours", "sum"),
     scheduled_hours=("scheduled_hours", "sum"),
     actual_hours=("actual_hours", "sum"),
@@ -70,6 +85,10 @@ weekly_summary["week_start"] = weekly_summary["week"] - pd.to_timedelta(6, unit=
 weekly_summary["actual_labor_pct_sales"] = (
     weekly_summary["actual_labor"] / weekly_summary["sales_value"]
 ) * 100
+
+# --- Debug: Check weekly summary range ---
+st.write(f"Weekly summary range: {weekly_summary['week_start'].min()} to {weekly_summary['week'].max()}")
+st.write(f"Weekly summary records: {len(weekly_summary)}")
 
 # --- Charts ---
 st.subheader("📊 Actual Labor % of Sales")

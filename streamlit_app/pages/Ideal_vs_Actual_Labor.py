@@ -18,6 +18,11 @@ location_filter = st.selectbox("Select Store", ["All"] + [
 date_range = st.date_input("Select Date Range", [])
 
 # --- Load Data ---
+# Add a button to clear cache
+if st.button("🔄 Refresh Data (Clear Cache)"):
+    st.cache_data.clear()
+    st.rerun()
+
 @st.cache_data(ttl=3600)
 def load_data(table):
     return pd.DataFrame(supabase.table(table).select("*").execute().data)
@@ -31,6 +36,13 @@ for df in [actual_df, ideal_df, schedule_df]:
     df.columns = [col.lower() for col in df.columns]
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df["pc_number"] = df["pc_number"].astype(str)
+
+# --- Debug: Check raw data ---
+st.write("Raw Data Info:")
+st.write(f"Actual df: {len(actual_df)} records, date range: {actual_df['date'].min()} to {actual_df['date'].max()}")
+st.write(f"Ideal df: {len(ideal_df)} records, date range: {ideal_df['date'].min()} to {ideal_df['date'].max()}")
+st.write(f"Schedule df: {len(schedule_df)} records, date range: {schedule_df['date'].min()} to {schedule_df['date'].max()}")
+st.write("---")
 
 # --- Merge Data ---
 merged = actual_df.merge(ideal_df, on=["pc_number", "date", "hour_range"], how="left") \
@@ -64,13 +76,22 @@ daily_summary["actual_labor_pct_sales"] = (
 ) * 100
 
 # --- Debug: Check daily summary range ---
-st.write(f"Daily summary range: {daily_summary['date'].min()} to {daily_summary['date'].max()}")
+if not daily_summary.empty:
+    st.write(f"Daily summary range: {daily_summary['date'].min()} to {daily_summary['date'].max()}")
+else:
+    st.write("Daily summary is empty!")
 st.write(f"Daily summary records: {len(daily_summary)}")
 
 # --- Debug: Check data range ---
-st.write("Debug Info:")
-st.write(f"Date range in merged data: {merged['date'].min()} to {merged['date'].max()}")
+st.write("Filtered Data Info:")
+if not merged.empty:
+    st.write(f"Date range in merged data: {merged['date'].min()} to {merged['date'].max()}")
+else:
+    st.write("Merged data is empty!")
 st.write(f"Total records: {len(merged)}")
+if date_range and len(date_range) == 2:
+    st.write(f"Selected date range: {date_range[0]} to {date_range[1]}")
+st.write("---")
 
 # --- Weekly Summary ---
 merged_for_weekly["week"] = pd.to_datetime(merged_for_weekly["date"])

@@ -4,10 +4,6 @@ from supabase import create_client
 from datetime import datetime
 import plotly.express as px
 
-if st.button("🔁 Clear Cache"):
-    st.cache_data.clear()
-    st.success("✅ Cache cleared — please manually reload the app.")
-
 
 # --- Streamlit Page Config ---
 st.set_page_config(page_title="Inventory Variance", layout="wide")

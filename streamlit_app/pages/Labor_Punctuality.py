@@ -97,8 +97,9 @@ def evaluate(row):
             return pd.Series(["Early", 0])
         else:
             return pd.Series(["Other", None])
-    except:
+    except Exception as e:
         return pd.Series(["Invalid", None])
+
 
 merged_df[["status", "late_minutes"]] = merged_df.apply(evaluate, axis=1)
 

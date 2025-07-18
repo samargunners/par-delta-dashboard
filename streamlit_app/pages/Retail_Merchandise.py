@@ -46,7 +46,7 @@ store_options = ["All"] + sorted(df["pc_number"].unique())
 period_options = ["All"] + sorted(df["reporting_period"].unique())
 
 location_filter = st.selectbox("Select Store", store_options)
-reporting_period = st.selectbox("Select Reporting Period (Week)", period_options)
+reporting_period = st.selectbox("Select Reporting Period (Week)", period_options, reverse=True)
 
 # --- Apply Filters ---
 if location_filter != "All":

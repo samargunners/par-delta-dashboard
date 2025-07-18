@@ -59,16 +59,21 @@ usage_df["date"] = pd.to_datetime(usage_df["date"], errors="coerce").dt.date
 usage_df["pc_number"] = usage_df["pc_number"].astype(str).str.strip().str.zfill(6)
 usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
 
-# --- Filter for last 7 days and only donuts ---
+# --- Calculate rolling 7-day window (Sunday to Saturday) ---
 today = datetime.now().date()
-seven_days_ago = today - timedelta(days=7)
+# Find the most recent Saturday (weekday 5 = Saturday)
+days_since_saturday = (today.weekday() + 2) % 7  # Convert to days since Saturday
+last_saturday = today - timedelta(days=days_since_saturday)
+seven_days_ago = last_saturday - timedelta(days=6)  # 7 days total including Saturday
+
+# --- Filter for last 7 days and only donuts ---
 donut_sales = sales_df[
     (sales_df["product_type"].str.contains("donut", na=False)) &
-    (sales_df["date"] >= seven_days_ago) & (sales_df["date"] < today)
+    (sales_df["date"] >= seven_days_ago) & (sales_df["date"] <= last_saturday)
 ]
 usage_donuts = usage_df[
     (usage_df["product_type"].str.contains("donut", na=False)) &
-    (usage_df["date"] >= seven_days_ago) & (usage_df["date"] < today)
+    (usage_df["date"] >= seven_days_ago) & (usage_df["date"] <= last_saturday)
 ]
 
 # --- Aggregate sales by date and pc_number ---
@@ -89,24 +94,16 @@ donut_overview = merged.groupby("pc_number").agg(
 donut_overview.rename(columns={"pc_number": "PC Number"}, inplace=True)
 
 st.subheader(
-    f"🍩 Donut Overview (Last 7 Days: {seven_days_ago.strftime('%Y-%m-%d')} to {(today - timedelta(days=1)).strftime('%Y-%m-%d')})"
+    f"🍩 Donut Overview (Last 7 Days: {seven_days_ago.strftime('%Y-%m-%d')} to {last_saturday.strftime('%Y-%m-%d')})"
 )
 st.dataframe(donut_overview[["PC Number", "Calculated_Waste_7d_Avg", "Recorded_Waste_7d_Avg", "Gap"]])
-
-# --- Rolling 7-day window ---
-today = datetime.now().date()
-# Find the most recent Saturday (weekday 5 = Saturday)
-days_since_saturday = (today.weekday() + 2) % 7  # Convert to days since Saturday
-last_saturday = today - timedelta(days=days_since_saturday)
-seven_days_ago = last_saturday - timedelta(days=6)  # 7 days total including Saturday
-
 
 # --- Labor Overview Table ---
 # Schedule
 sched_resp = supabase.table("schedule_table_labor") \
     .select("pc_number, scheduled_hours, date") \
     .gte("date", seven_days_ago.isoformat()) \
-    .lt("date", today.isoformat()) \
+    .lte("date", last_saturday.isoformat()) \
     .execute()
 sched_df = pd.DataFrame(sched_resp.data)
 
@@ -114,7 +111,7 @@ sched_df = pd.DataFrame(sched_resp.data)
 ideal_resp = supabase.table("ideal_table_labor") \
     .select("pc_number, ideal_hours, date") \
     .gte("date", seven_days_ago.isoformat()) \
-    .lt("date", today.isoformat()) \
+    .lte("date", last_saturday.isoformat()) \
     .execute()
 ideal_df = pd.DataFrame(ideal_resp.data)
 
@@ -122,7 +119,7 @@ ideal_df = pd.DataFrame(ideal_resp.data)
 actual_resp = supabase.table("actual_table_labor") \
     .select("pc_number, actual_hours, date") \
     .gte("date", seven_days_ago.isoformat()) \
-    .lt("date", today.isoformat()) \
+    .lte("date", last_saturday.isoformat()) \
     .execute()
 actual_df = pd.DataFrame(actual_resp.data)
 
@@ -137,7 +134,7 @@ if not sched_df.empty and not ideal_df.empty and not actual_df.empty:
     labor["Schedule_vs_Actual_Var_%"] = ((labor["scheduled_hours"] - labor["actual_hours"]) / labor["actual_hours"].replace(0, 1)) * 100
     labor.rename(columns={"pc_number": "PC Number"}, inplace=True)
     st.subheader(
-        f"⏱️ Labor Overview (Last 7 Days: {seven_days_ago.strftime('%Y-%m-%d')} to {(today - timedelta(days=1)).strftime('%Y-%m-%d')})"
+        f"⏱️ Labor Overview (Last 7 Days: {seven_days_ago.strftime('%Y-%m-%d')} to {last_saturday.strftime('%Y-%m-%d')})"
     )
     st.dataframe(labor[["PC Number", "Schedule_vs_Ideal_Var_%", "Schedule_vs_Actual_Var_%"]])
 else:

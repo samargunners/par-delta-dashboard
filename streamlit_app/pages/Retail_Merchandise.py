@@ -84,8 +84,15 @@ st.dataframe(summary)
 # --- Charts ---
 # Chart 1: Top 10 by absolute Variance Qty (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Retail Variance by Quantity")
-top_qty_variance = df.reindex(df["qty_variance"].abs().sort_values(ascending=False).index).head(10)
-top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=True)  # for horizontal bar
+
+# Clean and sort data
+top_qty_variance = (
+    df.dropna(subset=["qty_variance", "product_name"])
+    .copy()
+)
+top_qty_variance["abs_qty_variance"] = top_qty_variance["qty_variance"].abs()
+top_qty_variance = top_qty_variance.sort_values("abs_qty_variance", ascending=False).head(10)
+top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=True)  # for bar orientation
 
 if not top_qty_variance.empty:
     fig1 = px.bar(
@@ -102,6 +109,7 @@ if not top_qty_variance.empty:
     st.plotly_chart(fig1, use_container_width=True)
 else:
     st.info("No data available for selected filters.")
+
 
 # Chart 2: Top 10 by absolute Variance $ (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Retail Variance by $")

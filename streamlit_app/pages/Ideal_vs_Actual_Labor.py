@@ -27,19 +27,17 @@ if st.button("🔄 Refresh Data (Clear Cache)"):
 def load_data(table):
     return pd.DataFrame(supabase.table(table).select("*").execute().data)
 
-actual_df = load_data("actual_table_labor")
-ideal_df = load_data("ideal_table_labor")
-schedule_df = load_data("schedule_table_labor")
+# Use the consolidated hourly_labor_summary table instead of merging separate tables
+hourly_data = load_data("hourly_labor_summary")
 
 # --- Normalize and Clean ---
-for df in [actual_df, ideal_df, schedule_df]:
-    df.columns = [col.lower() for col in df.columns]
-    df["date"] = pd.to_datetime(df["date"]).dt.date
-    df["pc_number"] = df["pc_number"].astype(str)
+hourly_data.columns = [col.lower() for col in hourly_data.columns]
+hourly_data["date"] = pd.to_datetime(hourly_data["date"]).dt.date
+hourly_data["pc_number"] = hourly_data["pc_number"].astype(str)
 
 # --- Merge Data ---
-merged = actual_df.merge(ideal_df, on=["pc_number", "date", "hour_range"], how="left") \
-                  .merge(schedule_df, on=["pc_number", "date", "hour_range"], how="left")
+# No need to merge since we're using the consolidated table
+merged = hourly_data.copy()
 
 # --- Apply Filters ---
 # Create a copy for weekly summary (only location filter, no date filter)

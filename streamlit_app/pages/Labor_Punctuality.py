@@ -199,10 +199,10 @@ st.dataframe(styled_table, use_container_width=True)
 st.markdown("""
 **Color Legend:**
 - 🟢 **Green (95%+)**: Excellent punctuality
-- 🟢 **Light Green (90-94%)**: Very good punctuality  
-- 🟡 **Yellow (85-89%)**: Good punctuality
-- 🟠 **Light Orange (80-84%)**: Fair punctuality
-- 🟠 **Orange (75-79%)**: Poor punctuality
+- 🟢 **Medium Green (90-94%)**: Very good punctuality  
+- 🟡 **Yellow-Orange (85-89%)**: Good punctuality
+- 🟠 **Bright Orange (80-84%)**: Fair punctuality
+- 🟠 **Deep Orange (75-79%)**: Poor punctuality
 - 🟠 **Dark Orange (70-74%)**: Very poor punctuality
 - 🔴 **Red (<70%)**: Critical punctuality issues
 """)

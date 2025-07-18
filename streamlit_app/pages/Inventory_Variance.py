@@ -4,6 +4,11 @@ from supabase import create_client
 from datetime import datetime
 import plotly.express as px
 
+if st.button("🔁 Clear Cache"):
+    st.cache_data.clear()
+    st.experimental_rerun()
+
+
 # --- Streamlit Page Config ---
 st.set_page_config(page_title="Inventory Variance", layout="wide")
 st.title("📦 Inventory Variance Analysis")

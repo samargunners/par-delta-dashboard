@@ -37,13 +37,6 @@ for df in [actual_df, ideal_df, schedule_df]:
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df["pc_number"] = df["pc_number"].astype(str)
 
-# --- Debug: Check raw data ---
-st.write("Raw Data Info:")
-st.write(f"Actual df: {len(actual_df)} records, date range: {actual_df['date'].min()} to {actual_df['date'].max()}")
-st.write(f"Ideal df: {len(ideal_df)} records, date range: {ideal_df['date'].min()} to {ideal_df['date'].max()}")
-st.write(f"Schedule df: {len(schedule_df)} records, date range: {schedule_df['date'].min()} to {schedule_df['date'].max()}")
-st.write("---")
-
 # --- Merge Data ---
 merged = actual_df.merge(ideal_df, on=["pc_number", "date", "hour_range"], how="left") \
                   .merge(schedule_df, on=["pc_number", "date", "hour_range"], how="left")
@@ -75,24 +68,6 @@ daily_summary["actual_labor_pct_sales"] = (
     daily_summary["actual_labor"] / daily_summary["sales_value"]
 ) * 100
 
-# --- Debug: Check daily summary range ---
-if not daily_summary.empty:
-    st.write(f"Daily summary range: {daily_summary['date'].min()} to {daily_summary['date'].max()}")
-else:
-    st.write("Daily summary is empty!")
-st.write(f"Daily summary records: {len(daily_summary)}")
-
-# --- Debug: Check data range ---
-st.write("Filtered Data Info:")
-if not merged.empty:
-    st.write(f"Date range in merged data: {merged['date'].min()} to {merged['date'].max()}")
-else:
-    st.write("Merged data is empty!")
-st.write(f"Total records: {len(merged)}")
-if date_range and len(date_range) == 2:
-    st.write(f"Selected date range: {date_range[0]} to {date_range[1]}")
-st.write("---")
-
 # --- Weekly Summary ---
 merged_for_weekly["week"] = pd.to_datetime(merged_for_weekly["date"])
 weekly_summary = merged_for_weekly.groupby(pd.Grouper(key="week", freq="W-SAT")).agg(
@@ -106,10 +81,6 @@ weekly_summary["week_start"] = weekly_summary["week"] - pd.to_timedelta(6, unit=
 weekly_summary["actual_labor_pct_sales"] = (
     weekly_summary["actual_labor"] / weekly_summary["sales_value"]
 ) * 100
-
-# --- Debug: Check weekly summary range ---
-st.write(f"Weekly summary range: {weekly_summary['week_start'].min()} to {weekly_summary['week'].max()}")
-st.write(f"Weekly summary records: {len(weekly_summary)}")
 
 # --- Charts ---
 st.subheader("📊 Actual Labor % of Sales")

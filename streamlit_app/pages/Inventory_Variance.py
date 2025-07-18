@@ -6,7 +6,7 @@ import plotly.express as px
 
 if st.button("🔁 Clear Cache"):
     st.cache_data.clear()
-    st.experimental_rerun()
+    st.success("✅ Cache cleared — please manually reload the app.")
 
 
 # --- Streamlit Page Config ---

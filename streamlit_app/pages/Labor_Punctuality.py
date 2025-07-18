@@ -47,9 +47,17 @@ clock_df["pc_number"] = clock_df["pc_number"].astype(str).str.zfill(6)
 
 # --- Filters ---
 location_filter = st.selectbox("Select Store", ["All"] + sorted(clock_df["pc_number"].unique()))
+
+# Set default date range based on latest date in clockin table (7 days back from latest)
+latest_clockin_date = clock_df["date"].max()
+default_start_date = latest_clockin_date - pd.Timedelta(days=6)  # 7 days total (including latest date)
+default_end_date = latest_clockin_date
+
+# Overall min/max dates for the date picker limits
 min_date = min(clock_df["date"].min(), sched_df["date"].min())
 max_date = max(clock_df["date"].max(), sched_df["date"].max())
-date_range = st.date_input("Select Date Range", [min_date, max_date])
+
+date_range = st.date_input("Select Date Range", [default_start_date, default_end_date], min_value=min_date, max_value=max_date)
 
 st.markdown("### ⚙️ Settings")
 late_threshold = st.slider("Late time threshold (minutes)", min_value=1, max_value=15, value=5)

@@ -85,11 +85,10 @@ st.dataframe(summary)
 # Chart 1: Top 10 by absolute Variance Qty (sorted biggest to smallest)
 st.subheader("🔟 Top 10 Retail Variance by Quantity")
 
-# Clean and sort data
-top_qty_variance = (
-    df.dropna(subset=["qty_variance", "product_name"])
-    .copy()
-)
+# Clean and sort data - fill missing qty_variance with 0 to show all products
+top_qty_variance = df.copy()
+top_qty_variance["qty_variance"] = top_qty_variance["qty_variance"].fillna(0)
+top_qty_variance = top_qty_variance.dropna(subset=["product_name"])  # Only drop if product name is missing
 top_qty_variance["abs_qty_variance"] = top_qty_variance["qty_variance"].abs()
 top_qty_variance = top_qty_variance.sort_values("abs_qty_variance", ascending=False).head(10)
 top_qty_variance = top_qty_variance.sort_values("qty_variance", ascending=True)  # for bar orientation

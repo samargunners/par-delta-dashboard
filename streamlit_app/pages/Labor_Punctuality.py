@@ -188,8 +188,8 @@ def style_punctuality_table(df):
         "Avg Late (mins)": "{:.1f}"
     })
 
-# Sort by punctuality percentage (worst first for attention)
-display_report_sorted = display_report.sort_values("Punctuality %", ascending=True)
+# Sort by punctuality percentage (best first by default)
+display_report_sorted = display_report.sort_values("Punctuality %", ascending=False)
 
 # Display the styled table
 styled_table = style_punctuality_table(display_report_sorted)

@@ -61,7 +61,13 @@ usage_df["product_type"] = usage_df["product_type"].astype(str).str.lower()
 location_filter = st.selectbox("Select Store", ["All"] + sorted(sales_df["pc_number"].unique()))
 min_date = min(sales_df["date"].min(), usage_df["date"].min())
 max_date = max(sales_df["date"].max(), usage_df["date"].max())
-date_range = st.date_input("Select Date Range", [min_date, max_date])
+
+# Set default to latest date and one week prior
+from datetime import timedelta
+default_end_date = max_date
+default_start_date = max_date - timedelta(days=7)
+
+date_range = st.date_input("Select Date Range", [default_start_date, default_end_date])
 
 # --- Apply Filters ---
 donut_sales = sales_df[sales_df["product_type"].str.contains("donut", na=False)]

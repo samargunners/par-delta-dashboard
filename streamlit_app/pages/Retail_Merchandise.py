@@ -43,7 +43,7 @@ df = df[df["subcategory"].isin(retail_subcategories)]
 
 # --- Filters ---
 store_options = ["All"] + sorted(df["pc_number"].unique())
-period_options = ["All"] + sorted(df["reporting_period"].unique())
+period_options = ["All"] + sorted(df["reporting_period"].unique(), reverse=True)
 
 location_filter = st.selectbox("Select Store", store_options)
 reporting_period = st.selectbox("Select Reporting Period (Week)", period_options)

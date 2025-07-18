@@ -95,7 +95,10 @@ st.dataframe(donut_overview[["PC Number", "Calculated_Waste_7d_Avg", "Recorded_W
 
 # --- Rolling 7-day window ---
 today = datetime.now().date()
-seven_days_ago = today - timedelta(days=7)
+# Find the most recent Saturday (weekday 5 = Saturday)
+days_since_saturday = (today.weekday() + 2) % 7  # Convert to days since Saturday
+last_saturday = today - timedelta(days=days_since_saturday)
+seven_days_ago = last_saturday - timedelta(days=6)  # 7 days total including Saturday
 
 
 # --- Labor Overview Table ---

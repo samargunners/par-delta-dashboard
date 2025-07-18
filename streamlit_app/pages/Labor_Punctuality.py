@@ -162,19 +162,19 @@ display_report = detailed_report[[
 # Function to get color based on punctuality percentage
 def get_punctuality_color(percentage):
     if percentage >= 95:
-        return "background-color: #d4edda; color: #155724"  # Green
+        return "background-color: #28a745; color: white"  # Dark Green
     elif percentage >= 90:
-        return "background-color: #c3e6cb; color: #155724"  # Light Green
+        return "background-color: #5cb85c; color: white"  # Medium Green
     elif percentage >= 85:
-        return "background-color: #fff3cd; color: #856404"  # Yellow
+        return "background-color: #f0ad4e; color: white"  # Yellow-Orange
     elif percentage >= 80:
-        return "background-color: #ffeaa7; color: #856404"  # Light Orange
+        return "background-color: #fd7e14; color: white"  # Bright Orange
     elif percentage >= 75:
-        return "background-color: #fab1a0; color: #721c24"  # Orange
+        return "background-color: #e67e22; color: white"  # Deep Orange
     elif percentage >= 70:
-        return "background-color: #fdcb6e; color: #721c24"  # Dark Orange
+        return "background-color: #d35400; color: white"  # Dark Orange
     else:
-        return "background-color: #f8d7da; color: #721c24"  # Red
+        return "background-color: #dc3545; color: white"  # Bold Red
 
 # Apply styling to the dataframe
 def style_punctuality_table(df):

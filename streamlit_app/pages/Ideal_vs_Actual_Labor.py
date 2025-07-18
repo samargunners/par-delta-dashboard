@@ -17,15 +17,14 @@ location_filter = st.selectbox("Select Store", ["All"] + [
 ])
 date_range = st.date_input("Select Date Range", [])
 
-# --- Load Data ---
-# Add a button to clear cache
+# --- Refresh Button ---
 if st.button("🔄 Refresh Data (Clear Cache)"):
-    st.cache_data.clear()
-    st.rerun()
+    st.experimental_rerun()
 
-@st.cache_data(ttl=3600)
+# --- Load Data (No cache for always-fresh updates) ---
 def load_data(table):
-    return pd.DataFrame(supabase.table(table).select("*").execute().data)
+    response = supabase.table(table).select("*").execute()
+    return pd.DataFrame(response.data)
 
 actual_df = load_data("actual_table_labor")
 ideal_df = load_data("ideal_table_labor")
@@ -37,18 +36,25 @@ for df in [actual_df, ideal_df, schedule_df]:
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df["pc_number"] = df["pc_number"].astype(str)
 
+# --- Preview Loaded Data (Debugging) ---
+st.caption("📦 Preview of Loaded Data:")
+st.write("Actual Labor:", actual_df.head())
+st.write("Ideal Labor:", ideal_df.head())
+st.write("Scheduled Labor:", schedule_df.head())
+
 # --- Merge Data ---
 merged = actual_df.merge(ideal_df, on=["pc_number", "date", "hour_range"], how="left") \
                   .merge(schedule_df, on=["pc_number", "date", "hour_range"], how="left")
 
+# --- Handle empty data ---
+if merged.empty:
+    st.warning("⚠️ No data available for selected filters or source tables.")
+    st.stop()
+
 # --- Apply Filters ---
-# Create a copy for weekly summary (only location filter, no date filter)
 merged_for_weekly = merged.copy()
 if location_filter != "All":
     merged_for_weekly = merged_for_weekly[merged_for_weekly["pc_number"] == location_filter]
-
-# Apply filters to main merged data (for daily summary and charts)
-if location_filter != "All":
     merged = merged[merged["pc_number"] == location_filter]
 
 if date_range and len(date_range) == 2:

@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from datetime import datetime, timedelta
 from supabase_client import supabase
 
@@ -50,4 +51,10 @@ def upload_cleaned_labor_data(file_path):
 
 # === Entry point ===
 if __name__ == "__main__":
-    upload_cleaned_labor_data("/Users/samarpatel/Desktop/samar/Dunkin/par-delta-dashboard/data/processed/hourly_labor_summary.xlsx")
+    # Get the project root directory (par-delta-dashboard)
+    script_dir = os.path.dirname(os.path.abspath(__file__))  # scripts/upload/
+    project_root = os.path.dirname(os.path.dirname(script_dir))  # par-delta-dashboard/
+    file_path = os.path.join(project_root, "data", "processed", "hourly_labor_summary.xlsx")
+    
+    print(f"📁 Reading file from: {file_path}")
+    upload_cleaned_labor_data(file_path)

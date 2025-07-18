@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from supabase_client import supabase  # local import
 
 def upload_dataframe(df, table_name):
@@ -27,8 +28,14 @@ def upload_dataframe(df, table_name):
             print("⛔ Record content:", record)
             break
 
+# Get the project root directory (par-delta-dashboard)
+script_dir = os.path.dirname(os.path.abspath(__file__))  # scripts/upload/
+project_root = os.path.dirname(os.path.dirname(script_dir))  # par-delta-dashboard/
+
 # === Upload Variance Report Summary
-df = pd.read_excel("data/processed/formatted_variance_report.xlsx")
+variance_file_path = os.path.join(project_root, "data", "processed", "formatted_variance_report.xlsx")
+print(f"📁 Reading variance report file from: {variance_file_path}")
+df = pd.read_excel(variance_file_path)
 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 df["pc_number"] = df["pc_number"].astype(str)
 

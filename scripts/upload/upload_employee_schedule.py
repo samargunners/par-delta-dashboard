@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from supabase_client import supabase
 
 def clean_df(df):
@@ -20,7 +21,12 @@ def upsert_to_supabase(df, table_name):
             print("⛔ Record:", record)
 
 def main():
-    file_path = "/Users/samarpatel/Desktop/samar/Dunkin/par-delta-dashboard/data/processed/employee_schedules.xlsx"
+    # Get the project root directory (par-delta-dashboard)
+    script_dir = os.path.dirname(os.path.abspath(__file__))  # scripts/upload/
+    project_root = os.path.dirname(os.path.dirname(script_dir))  # par-delta-dashboard/
+    file_path = os.path.join(project_root, "data", "processed", "employee_schedules.xlsx")
+    
+    print(f"📁 Reading file from: {file_path}")
     df = pd.read_excel(file_path)
     df = clean_df(df)
     upsert_to_supabase(df, "employee_schedules")

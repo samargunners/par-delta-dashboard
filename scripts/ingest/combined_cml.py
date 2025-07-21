@@ -1,6 +1,7 @@
 
 # === formatsales.py ===
 import pandas as pd
+from pathlib import Path
 
 def transform_donut_sales(filepath):
     # Load raw sales file
@@ -58,8 +59,15 @@ def transform_donut_sales(filepath):
 
 # ===== Main Execution =====
 if __name__ == "__main__":
-    input_file = "DataStreamExport.xlsx"
-    output_file = "DonutSales.xlsx"
+    # Get the script's directory and navigate to project root
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent.parent
+    
+    input_file = project_root / "data" / "raw" / "supplyit" / "DataStreamExport.xlsx"
+    output_file = project_root / "data" / "processed" / "DonutSales.xlsx"
+    
+    # Ensure output directory exists
+    output_file.parent.mkdir(parents=True, exist_ok=True)
 
     df_result = transform_donut_sales(input_file)
     df_result.to_excel(output_file, index=False)
@@ -141,8 +149,15 @@ def transform_usage_overview_with_strict_location_match(filepath):
 
 # ===== Main Execution =====
 if __name__ == "__main__":
-    original_path = "UsageOverview.xlsx"  # Excel file must be in same folder
-    output_path = "UsageOverview_Formatted.xlsx"
+    # Get the script's directory and navigate to project root
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent.parent
+    
+    original_path = project_root / "data" / "raw" / "supplyit" / "UsageOverview.xlsx"
+    output_path = project_root / "data" / "processed" / "UsageOverview_Formatted.xlsx"
+    
+    # Ensure output directory exists
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     df_result = transform_usage_overview_with_strict_location_match(original_path)
     df_result.to_excel(output_path, index=False)
@@ -153,13 +168,17 @@ if __name__ == "__main__":
 import pandas as pd
 from pathlib import Path
 
+# Get the script's directory and navigate to project root
+script_dir = Path(__file__).parent
+project_root = script_dir.parent.parent
+
 # Set file paths
-base_path = Path("/Users/samarpatel/desktop/samar/dunkin/par-delta-dashboard/data/raw/supplyit")
-usage_path = base_path / "UsageOverview_Formatted.xlsx"
-sales_path = base_path / "DonutSales.xlsx"
+base_path = project_root / "data" / "raw" / "supplyit"
+usage_path = project_root / "data" / "processed" / "UsageOverview_Formatted.xlsx"
+sales_path = project_root / "data" / "processed" / "DonutSales.xlsx"
 
 # Output path
-processed_path = Path("/Users/samarpatel/desktop/samar/dunkin/par-delta-dashboard/data/processed")
+processed_path = project_root / "data" / "processed"
 processed_path.mkdir(parents=True, exist_ok=True)
 
 # === USAGE OVERVIEW CLEANING ===

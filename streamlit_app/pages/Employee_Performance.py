@@ -31,7 +31,6 @@ def load_all_rows(table):
     return df
 
 # --- Load Tables ---
-st.info("📊 Loading employee data...")
 employee_profile_df = load_all_rows("employee_profile")
 employee_clockin_df = load_all_rows("employee_clockin")
 employee_schedules_df = load_all_rows("employee_schedules")
@@ -41,8 +40,6 @@ if employee_profile_df.empty:
     st.stop()
 
 # --- Data Preprocessing ---
-st.info("🔄 Processing attendance data...")
-
 # Convert date columns
 if not employee_clockin_df.empty:
     employee_clockin_df["date"] = pd.to_datetime(employee_clockin_df["date"], errors="coerce")
@@ -69,8 +66,8 @@ if not employee_schedules_df.empty and not employee_clockin_df.empty:
         employee_clockin_df["date"].max()
     )
     
-    # Default to last 30 days
-    default_start = max_date - pd.Timedelta(days=29)
+    # Default to all available dates (full range)
+    default_start = min_date
     default_end = max_date
     
     date_range = st.sidebar.date_input(

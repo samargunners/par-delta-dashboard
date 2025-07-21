@@ -103,7 +103,7 @@ def clean_consolidated_time_file(file_path):
 
 # ---------- 3. MAIN ----------
 if __name__ == "__main__":
-    main_folder = "/Users/samarpatel/Desktop/samar/Dunkin/Dunkin_Analytics/Data/Raw/ClockInOut"
+    main_folder = "c:/Projects/par-delta-dashboard/data/raw/labour"
     schedule_folder = os.path.join(main_folder, "schedules")
     consolidated_file = os.path.join(main_folder, "consolidated_time.csv")
 

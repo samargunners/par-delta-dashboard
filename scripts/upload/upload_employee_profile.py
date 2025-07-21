@@ -5,28 +5,10 @@ from supabase_client import supabase
 
 def clean_employee_data(df):
     """Clean and prepare employee data for database upload"""
-    # Remove the header rows and empty rows
-    df = df.dropna(how='all')
+    # The data should already be clean from the ingest script, but we'll do final mapping
+    print(f"📊 Processing {len(df)} employee records")
     
-    # Find the actual header row (contains "Employee #")
-    header_row = None
-    for idx, row in df.iterrows():
-        if 'Employee #' in str(row.iloc[0]):
-            header_row = idx
-            break
-    
-    if header_row is None:
-        raise ValueError("Could not find header row with 'Employee #'")
-    
-    # Set the correct header and remove extra rows
-    df.columns = df.iloc[header_row]
-    df = df.iloc[header_row + 1:].reset_index(drop=True)
-    
-    # Remove rows that contain summary information or are empty
-    df = df[~df['Employee #'].str.contains('Filtered By:', na=True)]
-    df = df.dropna(subset=['Employee #'])
-    
-    # Clean column names and map to database schema
+    # Map CSV columns to database schema
     df_clean = pd.DataFrame()
     df_clean['employee_number'] = df['Employee #'].astype(str).str.strip()
     df_clean['first_name'] = df['First Name'].str.strip()
@@ -34,18 +16,19 @@ def clean_employee_data(df):
     df_clean['primary_position'] = df['Primary Position'].str.strip()
     df_clean['primary_location'] = df['Primary Location'].str.strip()
     
-    # Convert hired date to proper format
+    # Convert hired date to proper format (YYYY-MM-DD)
     df_clean['hired_date'] = pd.to_datetime(df['Hired Date'], errors='coerce').dt.strftime('%Y-%m-%d')
     
-    # Clean status field
+    # Clean status field (normalize to lowercase)
     df_clean['status'] = df['Status'].str.strip().str.lower()
     
-    # Remove any rows with missing employee numbers
+    # Remove any rows with missing employee numbers (primary key)
     df_clean = df_clean.dropna(subset=['employee_number'])
     
     # Replace NaN values with None for proper database handling
     df_clean = df_clean.where(pd.notnull(df_clean), None)
     
+    print(f"✅ Cleaned data ready for upload")
     return df_clean
 
 def batch_upsert(df, table_name, batch_size=100):
@@ -96,12 +79,14 @@ if __name__ == "__main__":
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
     
-    # File location
-    file_path = project_root / "data" / "raw" / "labour" / "consolidated_employee.csv"
+    # File location - use the cleaned CSV file from the ingest process
+    file_path = project_root / "data" / "processed" / "clean_consolidated_employee.csv"
     
     if not file_path.exists():
-        print("❌ Could not find consolidated_employee.csv file")
+        print("❌ Could not find clean_consolidated_employee.csv file")
         print(f"📍 Expected location: {file_path}")
-        print("\n💡 Please ensure the file is saved in data/raw/labour/consolidated_employee.csv")
+        print("\n💡 Please run the ingest script first:")
+        print("   python scripts\\ingest\\clean_consolidated_employee.py")
+        print("\n💡 This will create the cleaned CSV file from the raw data")
     else:
         upload_employee_profile(file_path)

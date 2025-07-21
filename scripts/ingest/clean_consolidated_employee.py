@@ -5,7 +5,7 @@ def clean_consolidated_employee_csv(input_path, output_path):
     """
     Clean the consolidated employee CSV file by:
     1. Removing the first row (header with timestamp)
-    2. Keeping only specific columns: Employee #, Last Name, First Name, Primary Position, Hired Date, Status
+    2. Keeping only specific columns: Employee #, Last Name, First Name, Primary Position, Primary Location, Hired Date, Status
     3. Removing the last row that contains filter information
     """
     print(f"📁 Reading CSV file from: {input_path}")
@@ -37,6 +37,9 @@ def clean_consolidated_employee_csv(input_path, output_path):
     if len(df.columns) > 5:
         columns_to_keep.append(df.columns[5])  # Primary Position
         column_mapping[df.columns[5]] = 'Primary Position'
+    if len(df.columns) > 6:
+        columns_to_keep.append(df.columns[6])  # Primary Location
+        column_mapping[df.columns[6]] = 'Primary Location'
     if len(df.columns) > 7:
         columns_to_keep.append(df.columns[7])  # Hired Date
         column_mapping[df.columns[7]] = 'Hired Date'

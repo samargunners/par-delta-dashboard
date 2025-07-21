@@ -133,14 +133,19 @@ def calculate_attendance_metrics():
         schedule_summary['days_absent'] = schedule_summary['days_scheduled']
         return schedule_summary
     
-    # Keep earliest clock-in per employee/date
+    # Keep earliest clock-in per employee/date (handles multiple shifts per day)
     clockin_clean = employee_clockin_filtered.sort_values(['employee_id', 'date', 'time_in']).drop_duplicates(
         subset=['employee_id', 'date'], keep='first'
     )
     
-    # Merge schedule with clockin data
+    # Also get earliest schedule time per employee/date (in case of multiple shifts)
+    schedule_clean = employee_schedules_filtered.sort_values(['employee_id', 'date', 'start_time']).drop_duplicates(
+        subset=['employee_id', 'date'], keep='first'
+    )
+    
+    # Merge schedule with clockin data (using cleaned data with earliest times)
     merged_data = pd.merge(
-        employee_schedules_filtered,
+        schedule_clean,
         clockin_clean[['employee_id', 'date', 'time_in']],
         on=['employee_id', 'date'],
         how='left'
@@ -281,7 +286,7 @@ else:
     # Sort by punctuality percentage (best first)
     display_df = display_df.sort_values('Punctuality %', ascending=False)
     
-    # Style function for punctuality
+    # Style function for punctuality (applies to both punctuality column and name column)
     def style_punctuality(val):
         if val >= 95:
             return 'background-color: #28a745; color: white'
@@ -298,10 +303,28 @@ else:
         else:
             return 'background-color: #dc3545; color: white'
     
+    # Function to apply name highlighting based on punctuality percentage
+    def highlight_name_by_punctuality(row):
+        punctuality = row['Punctuality %']
+        name_style = style_punctuality(punctuality)
+        punctuality_style = style_punctuality(punctuality)
+        
+        # Create style for each column
+        styles = [''] * len(row)
+        
+        # Apply style to Name column (index 1) and Punctuality % column
+        name_idx = row.index.get_loc('Name')
+        punctuality_idx = row.index.get_loc('Punctuality %')
+        
+        styles[name_idx] = name_style
+        styles[punctuality_idx] = punctuality_style
+        
+        return styles
+    
     # Apply styling
-    styled_df = display_df.style.applymap(
-        style_punctuality, 
-        subset=['Punctuality %']
+    styled_df = display_df.style.apply(
+        highlight_name_by_punctuality, 
+        axis=1
     ).format({
         'Punctuality %': '{:.1f}%'
     })

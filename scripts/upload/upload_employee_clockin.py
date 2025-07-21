@@ -1,4 +1,6 @@
 import pandas as pd
+import os
+from pathlib import Path
 from supabase_client import supabase
 
 def clean_df(df):
@@ -20,7 +22,11 @@ def upsert_to_supabase(df, table_name):
             print("⛔ Record:", record)
 
 def main():
-    file_path = "/Users/samarpatel/Desktop/samar/Dunkin/par-delta-dashboard/data/processed/employee_clockin.xlsx"
+    # Get the project root directory (2 levels up from current script location)
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent.parent
+    file_path = project_root / "data" / "processed" / "employee_clockin.xlsx"
+    
     df = pd.read_excel(file_path)
     df = clean_df(df)
     upsert_to_supabase(df, "employee_clockin")

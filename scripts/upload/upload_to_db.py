@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from pathlib import Path
 from supabase_client import supabase
 
 def get_latest_date(table_name, date_col):
@@ -32,12 +33,12 @@ def upload_dataframe_after_date(df, table_name, date_col, batch_size=500):
     print(f"✅ Finished uploading to {table_name}: {total} new rows")
 
 
-# Get the project root directory (par-delta-dashboard)
-script_dir = os.path.dirname(os.path.abspath(__file__))  # scripts/upload/
-project_root = os.path.dirname(os.path.dirname(script_dir))  # par-delta-dashboard/
+# Get the project root directory (2 levels up from current script location)
+script_dir = Path(__file__).parent
+project_root = script_dir.parent.parent
 
 # === Upload CML Usage Overview ===
-cml_usage_path = os.path.join(project_root, "data", "processed", "cml_usage.xlsx")
+cml_usage_path = project_root / "data" / "processed" / "cml_usage.xlsx"
 print(f"📁 Reading CML usage file from: {cml_usage_path}")
 usage_df = pd.read_excel(cml_usage_path)
 
@@ -57,7 +58,7 @@ upload_dataframe_after_date(usage_df, "usage_overview", "date")
 
 
 # === Upload Donut Sales Hourly ===
-donut_sales_path = os.path.join(project_root, "data", "processed", "donut_sales.xlsx")
+donut_sales_path = project_root / "data" / "processed" / "donut_sales.xlsx"
 print(f"📁 Reading Donut sales file from: {donut_sales_path}")
 sales_df = pd.read_excel(donut_sales_path)
 

@@ -68,7 +68,7 @@ else:
     max_date = None
 
 if min_date and max_date:
-    # Default to full range from employee clockin data
+    # Default to all available dates (start from donut data min, end at last Saturday)
     default_start = min_date
     default_end = max_date
     
@@ -80,7 +80,7 @@ if min_date and max_date:
     )
 else:
     date_range = None
-    st.warning("⚠️ No employee clockin data available for date filtering.")
+    st.warning("⚠️ No date data available for filtering from donut sales or employee attendance.")
 
 # Location filter
 location_options = ["All Locations"] + sorted(employee_profile_df["primary_location"].dropna().unique().tolist())

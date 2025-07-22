@@ -52,11 +52,48 @@ if not employee_schedules_df.empty:
 # Convert employee profile data
 employee_profile_df["hired_date"] = pd.to_datetime(employee_profile_df["hired_date"], errors="coerce")
 
+# --- Load Donut Data for Date Range Reference ---
+@st.cache_data(ttl=3600)
+def load_donut_data_dates():
+    """Load date range from donut waste & gap data"""
+    try:
+        # Load donut sales data
+        sales_response = supabase.table("donut_sales_hourly").select("date").execute()
+        sales_df = pd.DataFrame(sales_response.data)
+        
+        # Load usage overview data
+        usage_response = supabase.table("usage_overview").select("date").execute()
+        usage_df = pd.DataFrame(usage_response.data)
+        
+        # Combine dates and find range
+        all_dates = []
+        if not sales_df.empty:
+            sales_dates = pd.to_datetime(sales_df["date"], errors="coerce").dropna()
+            all_dates.extend(sales_dates.tolist())
+        
+        if not usage_df.empty:
+            usage_dates = pd.to_datetime(usage_df["date"], errors="coerce").dropna()
+            all_dates.extend(usage_dates.tolist())
+        
+        if all_dates:
+            return min(all_dates), max(all_dates)
+        else:
+            return None, None
+    except:
+        return None, None
+
 # --- Date Range Filter ---
 st.sidebar.header("📅 Filter Options")
 
-# Get date range for filtering
-if not employee_schedules_df.empty and not employee_clockin_df.empty:
+# Get date range for filtering - prioritize donut data, fallback to employee data
+donut_min_date, donut_max_date = load_donut_data_dates()
+
+if donut_min_date and donut_max_date:
+    # Use donut data date range
+    min_date = donut_min_date.date()
+    max_date = donut_max_date.date()
+elif not employee_schedules_df.empty and not employee_clockin_df.empty:
+    # Fallback to employee data
     min_date = min(
         employee_schedules_df["date"].min(),
         employee_clockin_df["date"].min()
@@ -65,7 +102,11 @@ if not employee_schedules_df.empty and not employee_clockin_df.empty:
         employee_schedules_df["date"].max(), 
         employee_clockin_df["date"].max()
     )
-    
+else:
+    min_date = None
+    max_date = None
+
+if min_date and max_date:
     # Default to all available dates (full range)
     default_start = min_date
     default_end = max_date
@@ -78,7 +119,7 @@ if not employee_schedules_df.empty and not employee_clockin_df.empty:
     )
 else:
     date_range = None
-    st.warning("⚠️ No attendance data available for date filtering.")
+    st.warning("⚠️ No date data available for filtering from donut sales or employee attendance.")
 
 # Location filter
 location_options = ["All Locations"] + sorted(employee_profile_df["primary_location"].dropna().unique().tolist())

@@ -5,3 +5,7 @@ numpy
 plotly
 plotly_express
 matplotlib
+openai
+langchain
+sqlalchemy
+psycopg2-binary

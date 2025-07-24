@@ -9,3 +9,4 @@ openai
 langchain
 sqlalchemy
 psycopg2-binary
+langchain-community

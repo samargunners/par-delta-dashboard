@@ -16,7 +16,7 @@ supabase_url = st.secrets["SUPABASE_URL"]       # e.g. https://ertcdieopoecjddam
 supabase_key = st.secrets["SUPABASE_KEY"]       # You are using this as the actual DB password
 
 # --- Dynamically build DB URL without changing secret format ---
-host = supabase_url.replace("https://", "db.")  # → db.ertcdieopoecjddamgkx.supabase.co
+host = st.secrets["SUPABASE_DB_HOST"]
 encoded_pw = quote_plus(supabase_key)
 db_url = f"postgresql://postgres:{encoded_pw}@{host}:5432/postgres"
 

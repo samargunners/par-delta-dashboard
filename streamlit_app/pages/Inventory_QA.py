@@ -11,7 +11,9 @@ st.title("📦 Inventory Q&A")
 
 # --- Load from secrets.toml ---
 openai_api_key = st.secrets["OPENAI_API_KEY"]
-db_url = st.secrets["SUPABASE_DB_URL"]
+supabase_url = st.secrets["SUPABASE_URL"]
+supabase_key = st.secrets["SUPABASE_KEY"]
+db_url = f"postgresql://postgres:{supabase_key}@{supabase_url.replace('https://', '')}:5432/postgres"
 
 # --- Connect to Supabase PostgreSQL ---
 engine = create_engine(db_url)

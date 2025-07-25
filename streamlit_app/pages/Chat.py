@@ -1,12 +1,15 @@
 # streamlit_app/pages/AI_QA_Bot.py
 import streamlit as st
 import pandas as pd
+import traceback
 from supabase import create_client
-from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from langchain.vectorstores.faiss import FAISS
-import traceback
+
+# Try OpenAI embeddings first, fallback to HuggingFace if quota exceeded
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 # --- Streamlit Page Config ---
 st.set_page_config(page_title="AI Chatbot - Inventory QA", layout="wide")
@@ -39,33 +42,36 @@ def clean_and_split_chunks(df, max_len=500):
 
 chunks = clean_and_split_chunks(df)
 
-# --- Embeddings + FAISS Vector Store ---
-vectorstore = None
+# --- Try OpenAI Embeddings, fallback to HuggingFace if quota exceeded ---
 retriever = None
 try:
+    # ✅ Try using OpenAI's cheapest embedding model
     embeddings = OpenAIEmbeddings(
         openai_api_key=st.secrets["OPENAI_API_KEY"],
-        model="text-embedding-3-small"
+        model="text-embedding-3-small"  # Cheapest embedding model
     )
-
-    # Batching embeddings to avoid overload
-    def embed_in_batches(texts, batch_size=100):
-        embedded_chunks = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            embedded_chunks.extend(embeddings.embed_documents(batch))
-        return FAISS.from_embeddings(embedded_chunks, texts, embeddings)
-
-    vectorstore = FAISS.from_texts(chunks, embeddings)  # Or use embed_in_batches if needed
+    vectorstore = FAISS.from_texts(chunks, embeddings)
     retriever = vectorstore.as_retriever()
 except Exception as e:
-    st.error(f"❌ Error during embedding/vectorstore creation: {e}")
-    st.text(traceback.format_exc())
+    if "insufficient_quota" in str(e):
+        st.warning("⚠️ OpenAI quota exceeded. Falling back to HuggingFace local embeddings.")
+        # ✅ Fallback to free local embeddings
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        vectorstore = FAISS.from_texts(chunks, embeddings)
+        retriever = vectorstore.as_retriever()
+    else:
+        st.error(f"❌ Embedding setup failed: {e}")
+        st.text(traceback.format_exc())
 
 # --- QA Chain ---
 if retriever:
     try:
-        llm = ChatOpenAI(temperature=0, openai_api_key=st.secrets["OPENAI_API_KEY"])
+        # ✅ Use GPT-3.5 Turbo for lowest cost LLM interaction
+        llm = ChatOpenAI(
+            temperature=0,
+            openai_api_key=st.secrets["OPENAI_API_KEY"],
+            model="gpt-3.5-turbo"  # Cheapest OpenAI chat model
+        )
         qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
         # --- Ask a Question ---

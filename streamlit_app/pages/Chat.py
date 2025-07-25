@@ -22,25 +22,56 @@ supabase = create_client(url, key)
 
 # --- Load Data from Supabase ---
 @st.cache_data(ttl=3600)
-def fetch_data():
-    try:
-        response = supabase.table("donut_sales_hourly").select("date, product_name, quantity").limit(1000).execute()
-        return pd.DataFrame(response.data)
-    except Exception as e:
-        st.error(f"❌ Failed to load data from Supabase: {e}")
-        return pd.DataFrame()
+def fetch_all_data():
+    tables_data = {}
+    table_names = [
+        "actual_table_labor",
+        "donut_sales_hourly", 
+        "employee_clockin",
+        "employee_profile",
+        "employee_schedules",
+        "hourly_labor_summary",
+        "ideal_table_labor",
+        "schedule_table_labor",
+        "stores",
+        "usage_overview",
+        "variance_report_summary"
+    ]
+    
+    for table_name in table_names:
+        try:
+            response = supabase.table(table_name).select("*").execute()
+            tables_data[table_name] = pd.DataFrame(response.data)
+            st.info(f"✅ Loaded {len(response.data)} records from {table_name}")
+        except Exception as e:
+            st.warning(f"⚠️ Could not load {table_name}: {e}")
+            tables_data[table_name] = pd.DataFrame()
+    
+    return tables_data
 
-df = fetch_data()
+all_data = fetch_all_data()
 
 # --- Format into Chunks ---
-def clean_and_split_chunks(df, max_len=500):
-    raw_chunks = [
-        f"Date: {row['date']}, Product: {row['product_name']}, Quantity: {row['quantity']}"
-        for _, row in df.iterrows()
-    ]
-    return [chunk[:max_len] for chunk in raw_chunks]
+def clean_and_split_chunks(all_data, max_len=500):
+    raw_chunks = []
+    
+    for table_name, df in all_data.items():
+        if not df.empty:
+            # Create chunks for each table with context
+            for _, row in df.iterrows():
+                # Convert all row data to string format
+                row_data = []
+                for col, val in row.items():
+                    if pd.notna(val):  # Only include non-null values
+                        row_data.append(f"{col}: {val}")
+                
+                if row_data:  # Only add if there's actual data
+                    chunk = f"Table: {table_name} | " + " | ".join(row_data)
+                    raw_chunks.append(chunk[:max_len])
+    
+    return raw_chunks
 
-chunks = clean_and_split_chunks(df)
+chunks = clean_and_split_chunks(all_data)
 
 # --- Try OpenAI Embeddings, fallback to HuggingFace if quota exceeded ---
 retriever = None
@@ -75,7 +106,7 @@ if retriever:
         qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
         # --- Ask a Question ---
-        query = st.text_input("Ask a question about donuts, waste, or inventory:")
+        query = st.text_input("Ask a question about labor, sales, employees, schedules, inventory, or any business data:")
         if query:
             with st.spinner("Thinking..."):
                 response = qa_chain.run(query)

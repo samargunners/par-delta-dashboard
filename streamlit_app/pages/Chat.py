@@ -42,7 +42,6 @@ def fetch_all_data():
         try:
             response = supabase.table(table_name).select("*").execute()
             tables_data[table_name] = pd.DataFrame(response.data)
-            st.info(f"✅ Loaded {len(response.data)} records from {table_name}")
         except Exception as e:
             st.warning(f"⚠️ Could not load {table_name}: {e}")
             tables_data[table_name] = pd.DataFrame()

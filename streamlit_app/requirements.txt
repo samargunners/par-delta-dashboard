@@ -10,3 +10,6 @@ langchain
 sqlalchemy
 psycopg2-binary
 langchain-community
+tiktoken
+langchain-openai
+faiss-cpu

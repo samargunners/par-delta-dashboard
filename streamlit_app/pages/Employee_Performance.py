@@ -335,30 +335,6 @@ st.subheader("📊 Labor Turnover Analysis (2025)")
 
 # Calculate turnover metrics
 def calculate_turnover_metrics():
-    # Debug: Check available columns
-    st.write("Debug - Available columns in employee_profile_df:", employee_profile_df.columns.tolist())
-    
-    # Check if last_edit_date column exists, if not, show warning
-    if 'last_edit_date' not in employee_profile_df.columns:
-        st.warning("⚠️ 'last_edit_date' column not found. Available columns: " + str(employee_profile_df.columns.tolist()))
-        st.info("📝 Showing turnover analysis without date filtering for terminated employees.")
-        
-        # Active employees (status = 'active')
-        active_employees = employee_profile_df[employee_profile_df['status'].str.lower() == 'active']
-        active_count = len(active_employees)
-        
-        # All terminated employees (without date filtering)
-        terminated_all = employee_profile_df[employee_profile_df['status'].str.lower() == 'terminated']
-        terminated_count = len(terminated_all)
-        
-        # Calculate turnover ratio
-        total_employees = active_count + terminated_count
-        if total_employees > 0:
-            turnover_ratio = (terminated_count / total_employees) * 100
-        else:
-            turnover_ratio = 0
-            
-        return active_count, terminated_count, total_employees, turnover_ratio, terminated_all
     
     # Convert last_edit_date to datetime for filtering
     employee_profile_df['last_edit_date'] = pd.to_datetime(employee_profile_df['last_edit_date'], errors='coerce')

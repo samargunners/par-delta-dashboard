@@ -335,6 +335,31 @@ st.subheader("📊 Labor Turnover Analysis (2025)")
 
 # Calculate turnover metrics
 def calculate_turnover_metrics():
+    # Debug: Check available columns
+    st.write("Debug - Available columns in employee_profile_df:", employee_profile_df.columns.tolist())
+    
+    # Check if last_edit_date column exists, if not, show warning
+    if 'last_edit_date' not in employee_profile_df.columns:
+        st.warning("⚠️ 'last_edit_date' column not found. Available columns: " + str(employee_profile_df.columns.tolist()))
+        st.info("📝 Showing turnover analysis without date filtering for terminated employees.")
+        
+        # Active employees (status = 'active')
+        active_employees = employee_profile_df[employee_profile_df['status'].str.lower() == 'active']
+        active_count = len(active_employees)
+        
+        # All terminated employees (without date filtering)
+        terminated_all = employee_profile_df[employee_profile_df['status'].str.lower() == 'terminated']
+        terminated_count = len(terminated_all)
+        
+        # Calculate turnover ratio
+        total_employees = active_count + terminated_count
+        if total_employees > 0:
+            turnover_ratio = (terminated_count / total_employees) * 100
+        else:
+            turnover_ratio = 0
+            
+        return active_count, terminated_count, total_employees, turnover_ratio, terminated_all
+    
     # Convert last_edit_date to datetime for filtering
     employee_profile_df['last_edit_date'] = pd.to_datetime(employee_profile_df['last_edit_date'], errors='coerce')
     
@@ -389,32 +414,54 @@ else:
 if not terminated_2025.empty:
     st.subheader("📋 Terminated Employees (2025)")
     
-    terminated_display = terminated_2025[['employee_number', 'first_name', 'last_name', 'primary_position', 'primary_location', 'hired_date', 'last_edit_date']].copy()
+    # Check which columns are available for display
+    available_cols = ['employee_number', 'first_name', 'last_name', 'primary_position', 'primary_location', 'hired_date']
+    if 'last_edit_date' in terminated_2025.columns:
+        available_cols.append('last_edit_date')
+    
+    terminated_display = terminated_2025[available_cols].copy()
     terminated_display['full_name'] = (terminated_display['first_name'].fillna('') + ' ' + terminated_display['last_name'].fillna('')).str.strip()
-    terminated_display['days_employed'] = (terminated_display['last_edit_date'] - pd.to_datetime(terminated_display['hired_date'])).dt.days
     
-    # Rename columns for display
-    terminated_display = terminated_display.rename(columns={
-        'employee_number': 'Employee #',
-        'full_name': 'Name',
-        'primary_position': 'Position',
-        'primary_location': 'Location',
-        'hired_date': 'Hired Date',
-        'last_edit_date': 'Termination Date',
-        'days_employed': 'Days Employed'
-    })
+    # Only calculate days employed if last_edit_date is available
+    if 'last_edit_date' in terminated_2025.columns:
+        terminated_display['days_employed'] = (terminated_display['last_edit_date'] - pd.to_datetime(terminated_display['hired_date'])).dt.days
+        
+        # Rename columns for display
+        terminated_display = terminated_display.rename(columns={
+            'employee_number': 'Employee #',
+            'full_name': 'Name',
+            'primary_position': 'Position',
+            'primary_location': 'Location',
+            'hired_date': 'Hired Date',
+            'last_edit_date': 'Termination Date',
+            'days_employed': 'Days Employed'
+        })
+        
+        # Format dates
+        terminated_display['Hired Date'] = pd.to_datetime(terminated_display['Hired Date']).dt.strftime('%Y-%m-%d')
+        terminated_display['Termination Date'] = pd.to_datetime(terminated_display['Termination Date']).dt.strftime('%Y-%m-%d')
+        
+        # Sort by termination date (most recent first)
+        terminated_display = terminated_display.sort_values('Termination Date', ascending=False)
+        
+        st.dataframe(terminated_display[['Employee #', 'Name', 'Position', 'Location', 'Hired Date', 'Termination Date', 'Days Employed']], use_container_width=True)
+    else:
+        # Rename columns for display (without termination date)
+        terminated_display = terminated_display.rename(columns={
+            'employee_number': 'Employee #',
+            'full_name': 'Name',
+            'primary_position': 'Position',
+            'primary_location': 'Location',
+            'hired_date': 'Hired Date'
+        })
+        
+        # Format hired date
+        terminated_display['Hired Date'] = pd.to_datetime(terminated_display['Hired Date']).dt.strftime('%Y-%m-%d')
+        
+        st.dataframe(terminated_display[['Employee #', 'Name', 'Position', 'Location', 'Hired Date']], use_container_width=True)
     
-    # Format dates
-    terminated_display['Hired Date'] = pd.to_datetime(terminated_display['Hired Date']).dt.strftime('%Y-%m-%d')
-    terminated_display['Termination Date'] = pd.to_datetime(terminated_display['Termination Date']).dt.strftime('%Y-%m-%d')
-    
-    # Sort by termination date (most recent first)
-    terminated_display = terminated_display.sort_values('Termination Date', ascending=False)
-    
-    st.dataframe(terminated_display[['Employee #', 'Name', 'Position', 'Location', 'Hired Date', 'Termination Date', 'Days Employed']], use_container_width=True)
-    
-    # Turnover trend chart
-    if len(terminated_2025) > 1:
+    # Turnover trend chart (only if last_edit_date is available)
+    if len(terminated_2025) > 1 and 'last_edit_date' in terminated_2025.columns:
         st.subheader("📈 Monthly Turnover Trend (2025)")
         
         # Group terminations by month
@@ -550,8 +597,8 @@ st.markdown("""
 
 **Labor Turnover Calculation:**
 - **Active Employees**: All employees with status = 'active'
-- **Terminated Employees**: Employees with status = 'terminated' AND last edit date in 2025
-- **Turnover Ratio**: (Terminated in 2025 / Total Employees) × 100%
+- **Terminated Employees**: Employees with status = 'terminated' (filtered by 2025 last edit date if available)
+- **Turnover Ratio**: (Terminated Employees / Total Employees) × 100%
 - **Benchmark**: <10% Excellent, 10-15% Acceptable, 15-20% Moderate Risk, >20% High Risk
 """)
 
@@ -561,4 +608,4 @@ if date_range and len(date_range) == 2:
 else:
     st.info("📅 Showing all available attendance data")
 
-st.info("📊 Turnover analysis includes all employees terminated in 2025 (based on last edit date) compared to currently active employees.")
+st.info("📊 Turnover analysis includes terminated employees compared to currently active employees. Date filtering applied when last_edit_date column is available.")

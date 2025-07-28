@@ -18,7 +18,10 @@ def clean_employee_data(df):
     
     # Convert hired date to proper format (YYYY-MM-DD)
     df_clean['hired_date'] = pd.to_datetime(df['Hired Date'], errors='coerce').dt.strftime('%Y-%m-%d')
-    
+
+    # Convert last_edit_date to proper format (YYYY-MM-DD)
+    df_clean['last_edit_date'] = pd.to_datetime(df['Last Edit Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+
     # Clean status field (normalize to lowercase)
     df_clean['status'] = df['Status'].str.strip().str.lower()
     

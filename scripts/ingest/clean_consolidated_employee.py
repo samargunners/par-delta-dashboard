@@ -41,8 +41,11 @@ def clean_consolidated_employee_csv(input_path, output_path):
         columns_to_keep.append(df.columns[6])  # Primary Location
         column_mapping[df.columns[6]] = 'Primary Location'
     if len(df.columns) > 7:
-        columns_to_keep.append(df.columns[9])  # last edit date
-        column_mapping[df.columns[7]] = 'Last Edit Date'
+        columns_to_keep.append(df.columns[7])  # Hired Date
+        column_mapping[df.columns[7]] = 'Hired Date'
+    if len(df.columns) > 9:
+        columns_to_keep.append(df.columns[9])  # last_edit_date
+        column_mapping[df.columns[9]] = 'Last Edit Date'
     if len(df.columns) > 10:
         columns_to_keep.append(df.columns[10])  # Status
         column_mapping[df.columns[10]] = 'Status'

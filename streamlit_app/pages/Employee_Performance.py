@@ -355,11 +355,9 @@ else:
             turnover_ratio = (terminated_count / total_employees) * 100
         else:
             turnover_ratio = 0
-            
-        return active_count, terminated_count, total_employees, turnover_ratio, terminated_2025
-    
-    active_count, terminated_count, total_employees_turnover, turnover_ratio, terminated_2025 = calculate_turnover_metrics()
-    
+
+        return active_count, terminated_count, total_employees, turnover_ratio, terminated_2025, active_count, terminated_count, total_employees, turnover_ratio, terminated_2025
+
     # Display turnover metrics
     col1, col2, col3, col4 = st.columns(4)
     

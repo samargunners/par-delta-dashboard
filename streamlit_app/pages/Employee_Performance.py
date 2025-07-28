@@ -329,127 +329,129 @@ else:
     })
     
     st.dataframe(styled_df, use_container_width=True)
-    
-    # --- Labor Turnover Analysis ---
-    st.subheader("📊 Labor Turnover Analysis (2025)")
-    
-    # Calculate turnover metrics
-    def calculate_turnover_metrics():
-        # Convert last_edit_date to datetime for filtering
-        employee_profile_df['last_edit_date'] = pd.to_datetime(employee_profile_df['last_edit_date'], errors='coerce')
-        
-        # Active employees (status = 'active')
-        active_employees = employee_profile_df[employee_profile_df['status'].str.lower() == 'active']
-        active_count = len(active_employees)
-        
-        # Terminated employees (status = 'terminated' AND last_edit_date in 2025)
-        terminated_2025 = employee_profile_df[
-            (employee_profile_df['status'].str.lower() == 'terminated') & 
-            (employee_profile_df['last_edit_date'].dt.year == 2025)
-        ]
-        terminated_count = len(terminated_2025)
-        
-        # Calculate turnover ratio
-        total_employees = active_count + terminated_count
-        if total_employees > 0:
-            turnover_ratio = (terminated_count / total_employees) * 100
-        else:
-            turnover_ratio = 0
-            
-        return active_count, terminated_count, total_employees, turnover_ratio, terminated_2025
-    
-    active_count, terminated_count, total_employees_turnover, turnover_ratio, terminated_2025 = calculate_turnover_metrics()
 
-    # Display turnover metrics
-    col1, col2, col3, col4 = st.columns(4)
+# --- Labor Turnover Analysis ---
+st.subheader("📊 Labor Turnover Analysis (2025)")
+
+# Calculate turnover metrics
+def calculate_turnover_metrics():
+    # Convert last_edit_date to datetime for filtering
+    employee_profile_df['last_edit_date'] = pd.to_datetime(employee_profile_df['last_edit_date'], errors='coerce')
     
-    with col1:
-        st.metric("Active Employees", active_count)
+    # Active employees (status = 'active')
+    active_employees = employee_profile_df[employee_profile_df['status'].str.lower() == 'active']
+    active_count = len(active_employees)
     
-    with col2:
-        st.metric("Terminated (2025)", terminated_count)
+    # Terminated employees (status = 'terminated' AND last_edit_date in 2025)
+    terminated_2025 = employee_profile_df[
+        (employee_profile_df['status'].str.lower() == 'terminated') & 
+        (employee_profile_df['last_edit_date'].dt.year == 2025)
+    ]
+    terminated_count = len(terminated_2025)
     
-    with col3:
-        st.metric("Total for Calculation", total_employees_turnover)
-    
-    with col4:
-        st.metric("Turnover Ratio", f"{turnover_ratio:.1f}%")
-    
-    # Color-coded interpretation
-    if turnover_ratio > 20:
-        st.error(f"🔴 **High Turnover Risk**: {turnover_ratio:.1f}% turnover ratio indicates significant employee retention issues.")
-    elif turnover_ratio > 15:
-        st.warning(f"🟡 **Moderate Turnover**: {turnover_ratio:.1f}% turnover ratio suggests some retention concerns.")
-    elif turnover_ratio > 10:
-        st.info(f"🟠 **Acceptable Turnover**: {turnover_ratio:.1f}% turnover ratio is within normal range but worth monitoring.")
+    # Calculate turnover ratio
+    total_employees = active_count + terminated_count
+    if total_employees > 0:
+        turnover_ratio = (terminated_count / total_employees) * 100
     else:
-        st.success(f"🟢 **Low Turnover**: {turnover_ratio:.1f}% turnover ratio indicates good employee retention.")
-    
-    # Show terminated employees details if any
-    if not terminated_2025.empty:
-        st.subheader("📋 Terminated Employees (2025)")
+        turnover_ratio = 0
         
-        terminated_display = terminated_2025[['employee_number', 'first_name', 'last_name', 'primary_position', 'primary_location', 'hired_date', 'last_edit_date']].copy()
-        terminated_display['full_name'] = (terminated_display['first_name'].fillna('') + ' ' + terminated_display['last_name'].fillna('')).str.strip()
-        terminated_display['days_employed'] = (terminated_display['last_edit_date'] - pd.to_datetime(terminated_display['hired_date'])).dt.days
-        
-        # Rename columns for display
-        terminated_display = terminated_display.rename(columns={
-            'employee_number': 'Employee #',
-            'full_name': 'Name',
-            'primary_position': 'Position',
-            'primary_location': 'Location',
-            'hired_date': 'Hired Date',
-            'last_edit_date': 'Termination Date',
-            'days_employed': 'Days Employed'
-        })
-        
-        # Format dates
-        terminated_display['Hired Date'] = pd.to_datetime(terminated_display['Hired Date']).dt.strftime('%Y-%m-%d')
-        terminated_display['Termination Date'] = pd.to_datetime(terminated_display['Termination Date']).dt.strftime('%Y-%m-%d')
-        
-        # Sort by termination date (most recent first)
-        terminated_display = terminated_display.sort_values('Termination Date', ascending=False)
-        
-        st.dataframe(terminated_display[['Employee #', 'Name', 'Position', 'Location', 'Hired Date', 'Termination Date', 'Days Employed']], use_container_width=True)
-        
-        # Turnover trend chart
-        if len(terminated_2025) > 1:
-            st.subheader("📈 Monthly Turnover Trend (2025)")
-            
-            # Group terminations by month
-            terminated_2025['termination_month'] = terminated_2025['last_edit_date'].dt.to_period('M')
-            monthly_terminations = terminated_2025.groupby('termination_month').size().reset_index(name='terminations')
-            monthly_terminations['month'] = monthly_terminations['termination_month'].astype(str)
-            
-            # Create trend chart
-            fig_trend = px.line(
-                monthly_terminations,
-                x='month',
-                y='terminations',
-                title='Monthly Employee Terminations in 2025',
-                labels={'month': 'Month', 'terminations': 'Number of Terminations'},
-                markers=True
-            )
-            fig_trend.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig_trend, use_container_width=True)
-            
-            # Position-wise termination analysis
-            if len(terminated_2025['primary_position'].dropna().unique()) > 1:
-                st.subheader("💼 Terminations by Position")
-                
-                position_terminations = terminated_2025.groupby('primary_position').size().reset_index(name='terminations')
-                
-                fig_pos_term = px.bar(
-                    position_terminations,
-                    x='primary_position',
-                    y='terminations',
-                    title='Employee Terminations by Position (2025)',
-                    labels={'primary_position': 'Position', 'terminations': 'Number of Terminations'}
-                )
-                fig_pos_term.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_pos_term, use_container_width=True)
+    return active_count, terminated_count, total_employees, turnover_ratio, terminated_2025
 
+active_count, terminated_count, total_employees_turnover, turnover_ratio, terminated_2025 = calculate_turnover_metrics()
+
+# Display turnover metrics
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("Active Employees", active_count)
+
+with col2:
+    st.metric("Terminated (2025)", terminated_count)
+
+with col3:
+    st.metric("Total for Calculation", total_employees_turnover)
+
+with col4:
+    st.metric("Turnover Ratio", f"{turnover_ratio:.1f}%")
+
+# Color-coded interpretation
+if turnover_ratio > 20:
+    st.error(f"🔴 **High Turnover Risk**: {turnover_ratio:.1f}% turnover ratio indicates significant employee retention issues.")
+elif turnover_ratio > 15:
+    st.warning(f"🟡 **Moderate Turnover**: {turnover_ratio:.1f}% turnover ratio suggests some retention concerns.")
+elif turnover_ratio > 10:
+    st.info(f"🟠 **Acceptable Turnover**: {turnover_ratio:.1f}% turnover ratio is within normal range but worth monitoring.")
+else:
+    st.success(f"🟢 **Low Turnover**: {turnover_ratio:.1f}% turnover ratio indicates good employee retention.")
+
+# Show terminated employees details if any
+if not terminated_2025.empty:
+    st.subheader("📋 Terminated Employees (2025)")
+    
+    terminated_display = terminated_2025[['employee_number', 'first_name', 'last_name', 'primary_position', 'primary_location', 'hired_date', 'last_edit_date']].copy()
+    terminated_display['full_name'] = (terminated_display['first_name'].fillna('') + ' ' + terminated_display['last_name'].fillna('')).str.strip()
+    terminated_display['days_employed'] = (terminated_display['last_edit_date'] - pd.to_datetime(terminated_display['hired_date'])).dt.days
+    
+    # Rename columns for display
+    terminated_display = terminated_display.rename(columns={
+        'employee_number': 'Employee #',
+        'full_name': 'Name',
+        'primary_position': 'Position',
+        'primary_location': 'Location',
+        'hired_date': 'Hired Date',
+        'last_edit_date': 'Termination Date',
+        'days_employed': 'Days Employed'
+    })
+    
+    # Format dates
+    terminated_display['Hired Date'] = pd.to_datetime(terminated_display['Hired Date']).dt.strftime('%Y-%m-%d')
+    terminated_display['Termination Date'] = pd.to_datetime(terminated_display['Termination Date']).dt.strftime('%Y-%m-%d')
+    
+    # Sort by termination date (most recent first)
+    terminated_display = terminated_display.sort_values('Termination Date', ascending=False)
+    
+    st.dataframe(terminated_display[['Employee #', 'Name', 'Position', 'Location', 'Hired Date', 'Termination Date', 'Days Employed']], use_container_width=True)
+    
+    # Turnover trend chart
+    if len(terminated_2025) > 1:
+        st.subheader("📈 Monthly Turnover Trend (2025)")
+        
+        # Group terminations by month
+        terminated_2025['termination_month'] = terminated_2025['last_edit_date'].dt.to_period('M')
+        monthly_terminations = terminated_2025.groupby('termination_month').size().reset_index(name='terminations')
+        monthly_terminations['month'] = monthly_terminations['termination_month'].astype(str)
+        
+        # Create trend chart
+        fig_trend = px.line(
+            monthly_terminations,
+            x='month',
+            y='terminations',
+            title='Monthly Employee Terminations in 2025',
+            labels={'month': 'Month', 'terminations': 'Number of Terminations'},
+            markers=True
+        )
+        fig_trend.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig_trend, use_container_width=True)
+        
+        # Position-wise termination analysis
+        if len(terminated_2025['primary_position'].dropna().unique()) > 1:
+            st.subheader("💼 Terminations by Position")
+            
+            position_terminations = terminated_2025.groupby('primary_position').size().reset_index(name='terminations')
+            
+            fig_pos_term = px.bar(
+                position_terminations,
+                x='primary_position',
+                y='terminations',
+                title='Employee Terminations by Position (2025)',
+                labels={'primary_position': 'Position', 'terminations': 'Number of Terminations'}
+            )
+            fig_pos_term.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_pos_term, use_container_width=True)
+
+# Continue with the rest of the content for the filtered report
+if not filtered_report.empty:
     # --- Summary Statistics ---
     st.subheader("📊 Attendance Summary Statistics")
     

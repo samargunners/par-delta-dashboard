@@ -51,7 +51,7 @@ def clean_consolidated_employee_csv(input_path, output_path):
         column_mapping[df.columns[10]] = 'Status'
     
     print(f"� Keeping columns: {columns_to_keep}")
-    
+    c
     # Keep only the desired columns
     df = df[columns_to_keep]
     

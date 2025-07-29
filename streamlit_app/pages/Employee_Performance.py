@@ -234,6 +234,12 @@ else:
 # --- Apply Filters ---
 filtered_report = employee_report.copy()
 
+# Filter out employees with specific names that should be excluded
+exclude_names = ['zzz', 'yyy', 'USD', 'Test', 'Parth', 'Kunal', 'rita']
+# Create a mask that excludes any employee whose full_name contains any of the excluded terms (case-insensitive)
+name_mask = ~filtered_report['full_name'].str.lower().str.contains('|'.join([name.lower() for name in exclude_names]), na=False)
+filtered_report = filtered_report[name_mask]
+
 if selected_location != "All Locations":
     filtered_report = filtered_report[filtered_report['primary_location'] == selected_location]
 
@@ -339,14 +345,25 @@ def calculate_turnover_metrics():
     # Convert last_edit_date to datetime for filtering
     employee_profile_df['last_edit_date'] = pd.to_datetime(employee_profile_df['last_edit_date'], errors='coerce')
     
+    # Create full name for filtering
+    employee_profile_df['full_name_temp'] = (
+        employee_profile_df['first_name'].fillna('') + ' ' + 
+        employee_profile_df['last_name'].fillna('')
+    ).str.strip()
+    
+    # Filter out employees with specific names that should be excluded
+    exclude_names = ['zzz', 'yyy', 'USD', 'Test', 'Parth', 'Kunal', 'rita']
+    name_mask = ~employee_profile_df['full_name_temp'].str.lower().str.contains('|'.join([name.lower() for name in exclude_names]), na=False)
+    filtered_employee_df = employee_profile_df[name_mask]
+    
     # Active employees (status = 'active')
-    active_employees = employee_profile_df[employee_profile_df['status'].str.lower() == 'active']
+    active_employees = filtered_employee_df[filtered_employee_df['status'].str.lower() == 'active']
     active_count = len(active_employees)
     
     # Terminated employees (status = 'terminated' AND last_edit_date in 2025)
-    terminated_2025 = employee_profile_df[
-        (employee_profile_df['status'].str.lower() == 'terminated') & 
-        (employee_profile_df['last_edit_date'].dt.year == 2025)
+    terminated_2025 = filtered_employee_df[
+        (filtered_employee_df['status'].str.lower() == 'terminated') & 
+        (filtered_employee_df['last_edit_date'].dt.year == 2025)
     ]
     terminated_count = len(terminated_2025)
     
@@ -576,6 +593,8 @@ st.markdown("""
 - **Terminated Employees**: Employees with status = 'terminated' (filtered by 2025 last edit date if available)
 - **Turnover Ratio**: (Terminated Employees / Total Employees) × 100%
 - **Benchmark**: <10% Excellent, 10-15% Acceptable, 15-20% Moderate Risk, >20% High Risk
+
+**Note**: Employees with the following names are excluded from all calculations and displays: zzz, yyy, USD, Test, Parth, Kunal, rita
 """)
 
 # Display date range info

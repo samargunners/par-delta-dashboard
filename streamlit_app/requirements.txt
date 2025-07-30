@@ -14,3 +14,6 @@ tiktoken
 langchain-openai
 faiss-cpu
 sentence-transformers
+langchain.text_splitter
+langchain.prompts
+langchain.schema

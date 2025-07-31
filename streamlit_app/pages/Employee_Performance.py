@@ -490,6 +490,130 @@ if not terminated_2025.empty:
             fig_pos_term.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig_pos_term, use_container_width=True)
 
+# --- Position-wise Turnover Analysis Table ---
+st.subheader("📊 Turnover Analysis by Position")
+
+# Calculate turnover by position
+def calculate_position_turnover():
+    # Get the filtered employee data (excluding test names)
+    employee_profile_df['last_edit_date'] = pd.to_datetime(employee_profile_df['last_edit_date'], errors='coerce')
+    employee_profile_df['full_name_temp'] = (
+        employee_profile_df['first_name'].fillna('') + ' ' + 
+        employee_profile_df['last_name'].fillna('')
+    ).str.strip()
+    
+    exclude_names = ['zzz', 'yyy', 'USD', 'Test', 'Parth', 'Kunal', 'rita']
+    name_mask = ~employee_profile_df['full_name_temp'].str.lower().str.contains('|'.join([name.lower() for name in exclude_names]), na=False)
+    filtered_employee_df = employee_profile_df[name_mask]
+    
+    # Group by position and calculate metrics
+    position_stats = []
+    
+    for position in filtered_employee_df['primary_position'].dropna().unique():
+        position_employees = filtered_employee_df[filtered_employee_df['primary_position'] == position]
+        
+        # Active employees in this position
+        active_in_position = len(position_employees[position_employees['status'].str.lower() == 'active'])
+        
+        # Terminated employees in this position (2025)
+        terminated_in_position = len(position_employees[
+            (position_employees['status'].str.lower() == 'terminated') & 
+            (position_employees['last_edit_date'].dt.year == 2025)
+        ])
+        
+        # Total employees for calculation
+        total_in_position = active_in_position + terminated_in_position
+        
+        # Calculate turnover ratio
+        if total_in_position > 0:
+            turnover_ratio = (terminated_in_position / total_in_position) * 100
+        else:
+            turnover_ratio = 0
+        
+        # Risk assessment
+        if turnover_ratio > 20:
+            risk_level = "🔴 High Risk"
+        elif turnover_ratio > 15:
+            risk_level = "🟡 Moderate Risk"
+        elif turnover_ratio > 10:
+            risk_level = "🟠 Monitor"
+        else:
+            risk_level = "🟢 Low Risk"
+        
+        position_stats.append({
+            'Position': position,
+            'Active Employees': active_in_position,
+            'Terminated (2025)': terminated_in_position,
+            'Total for Calculation': total_in_position,
+            'Turnover Ratio (%)': round(turnover_ratio, 1),
+            'Risk Level': risk_level
+        })
+    
+    return pd.DataFrame(position_stats)
+
+position_turnover_df = calculate_position_turnover()
+
+if not position_turnover_df.empty:
+    # Sort by turnover ratio (highest first)
+    position_turnover_df = position_turnover_df.sort_values('Turnover Ratio (%)', ascending=False)
+    
+    # Style function for turnover ratio
+    def style_turnover_ratio(val):
+        if val > 20:
+            return 'background-color: #dc3545; color: white'  # Red
+        elif val > 15:
+            return 'background-color: #ffc107; color: black'  # Yellow
+        elif val > 10:
+            return 'background-color: #fd7e14; color: white'  # Orange
+        else:
+            return 'background-color: #28a745; color: white'  # Green
+    
+    # Function to apply styling to turnover ratio column
+    def highlight_turnover_column(row):
+        turnover_ratio = row['Turnover Ratio (%)']
+        style = style_turnover_ratio(turnover_ratio)
+        
+        styles = [''] * len(row)
+        turnover_idx = row.index.get_loc('Turnover Ratio (%)')
+        styles[turnover_idx] = style
+        
+        return styles
+    
+    # Apply styling
+    styled_position_df = position_turnover_df.style.apply(
+        highlight_turnover_column, 
+        axis=1
+    ).format({
+        'Turnover Ratio (%)': '{:.1f}%'
+    })
+    
+    st.dataframe(styled_position_df, use_container_width=True)
+    
+    # Summary insights
+    st.markdown("**Key Insights:**")
+    
+    high_risk_positions = position_turnover_df[position_turnover_df['Turnover Ratio (%)'] > 20]
+    if not high_risk_positions.empty:
+        st.error(f"🔴 **High Risk Positions**: {', '.join(high_risk_positions['Position'].tolist())} - Require immediate attention")
+    
+    moderate_risk_positions = position_turnover_df[
+        (position_turnover_df['Turnover Ratio (%)'] > 15) & 
+        (position_turnover_df['Turnover Ratio (%)'] <= 20)
+    ]
+    if not moderate_risk_positions.empty:
+        st.warning(f"🟡 **Moderate Risk Positions**: {', '.join(moderate_risk_positions['Position'].tolist())} - Should be monitored closely")
+    
+    low_risk_positions = position_turnover_df[position_turnover_df['Turnover Ratio (%)'] <= 10]
+    if not low_risk_positions.empty:
+        st.success(f"🟢 **Stable Positions**: {', '.join(low_risk_positions['Position'].tolist())} - Good retention rates")
+    
+    # Average turnover across all positions
+    avg_turnover = position_turnover_df['Turnover Ratio (%)'].mean()
+    st.info(f"📊 **Average Turnover Across All Positions**: {avg_turnover:.1f}%")
+    
+else:
+    st.warning("⚠️ No position data available for turnover analysis.")
+
 # Continue with the rest of the content for the filtered report
 if not filtered_report.empty:
     # --- Summary Statistics ---

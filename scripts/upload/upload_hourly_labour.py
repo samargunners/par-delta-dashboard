@@ -59,6 +59,13 @@ def split_frames(df: pd.DataFrame):
     actual = actual.where(pd.notnull(actual), None)
     sched = sched.where(pd.notnull(sched), None)
 
+    # Fill NaN in numeric columns with 0
+    numeric_actual_cols = ["actual_hours", "actual_labor", "sales_value", "check_count", "sales_per_labor_hour"]
+    numeric_sched_cols = ["scheduled_hours"]
+
+    actual[numeric_actual_cols] = actual[numeric_actual_cols].fillna(0)
+    sched[numeric_sched_cols] = sched[numeric_sched_cols].fillna(0)
+
     return actual, sched
 
 def upsert(table: str, rows: List[Dict], conflict_cols: List[str]):
@@ -94,3 +101,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

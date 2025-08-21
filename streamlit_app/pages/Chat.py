@@ -239,7 +239,7 @@ Answer:""",
             llm = ChatOpenAI(
                 temperature=0,
                 openai_api_key=openai_key,
-                model="gpt-3.5-turbo"  # Cheapest OpenAI chat model
+                model="gpt-4o"  # More powerful, still reasonably priced OpenAI model
             )
             
             qa_chain = RetrievalQA.from_chain_type(

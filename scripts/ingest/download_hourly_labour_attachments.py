@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""
-Download all 'Hourly Sales & Labour Prompted' Excel attachments since 28-Jul-2025.
-
-- Requires ONLY IMAP_USER and IMAP_PASS in .env at project root (par-delta-dashboard/.env)
-- Defaults:
-    IMAP_HOST=imap.gmail.com
-    IMAP_SENDER=biziq@crunchtime.it
-    IMAP_SUBJECT_KEY=Hourly Sales & Labour Prompted
-    IMAP_SINCE=28-Jul-2025
-- Saves to: <project_root>/data/raw/labour/actual_labor
-- File naming: YYYY-MM-DD__<original_name>.xlsx (email's Date header)
-- Idempotent: de-dupes by content; appends short hash if same name but different bytes
-"""
-
 import email
 import imaplib
 import os
@@ -24,39 +10,25 @@ from datetime import datetime
 from typing import Optional
 
 from dotenv import load_dotenv
-
-# ----------------------------
-# Load secrets & config from .env
-# ----------------------------
-# .env must live in the repo root (par-delta-dashboard/.env)
-# Example:
-#   IMAP_USER=your_email@example.com
-#   IMAP_PASS=your_app_password
 load_dotenv()
 
-IMAP_HOST     = os.getenv("IMAP_HOST", "imap.gmail.com")
-IMAP_USER     = os.getenv("IMAP_USER", "")
-IMAP_PASS     = os.getenv("IMAP_PASS", "")
+IMAP_HOST   = os.getenv("IMAP_HOST", "imap.gmail.com")
+IMAP_USER   = os.getenv("IMAP_USER", "")
+IMAP_PASS   = os.getenv("IMAP_PASS", "")
+MAILBOX     = "INBOX"
 
-SENDER        = os.getenv("IMAP_SENDER", "biziq@crunchtime.it")
-SUBJECT_KEY   = os.getenv("IMAP_SUBJECT_KEY", "Hourly Sales & Labour Prompted")
-SINCE_DATE    = os.getenv("IMAP_SINCE", "28-Jul-2025")  # IMAP format: DD-MMM-YYYY
+SENDER      = os.getenv("IMAP_SENDER", "biziq@crunchtime.it")
+SUBJECT_KEY = os.getenv("IMAP_SUBJECT_KEY", "Hourly Sales & Labour Prompted")
+SINCE_DATE  = os.getenv("IMAP_SINCE", "28-Jul-2025")  # DD-MMM-YYYY
+DEBUG_LIST  = int(os.getenv("IMAP_DEBUG_LIST", "1"))
 
-# Only these attachment types will be saved
 ALLOWED_EXT = {".xlsx", ".xls"}
 
-# ----------------------------
-# Dynamic, portable save path
-# ----------------------------
-# This file is at: <root>/scripts/ingest/download_hourly_labour_attachments.py
 SCRIPT_PATH  = Path(__file__).resolve()
-PROJECT_ROOT = SCRIPT_PATH.parents[2]  # go up two levels to <root>
+PROJECT_ROOT = SCRIPT_PATH.parents[2]
 SAVE_DIR     = PROJECT_ROOT / "data" / "raw" / "labour" / "actual_labor"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
-# ----------------------------
-# Helpers
-# ----------------------------
 def _decode(s: Optional[str]) -> str:
     if not s:
         return ""
@@ -65,15 +37,19 @@ def _decode(s: Optional[str]) -> str:
     except Exception:
         return s
 
+def _norm_subject(s: str) -> str:
+    s = s.replace("&amp;", "&")
+    # collapse whitespace
+    s = " ".join(s.split())
+    return s.casefold()
+
 def _safe_filename(name: str) -> str:
-    # Remove filesystem-unfriendly chars
     return "".join(ch if ch.isalnum() or ch in (" ", ".", "_", "-", "(", ")") else "_" for ch in name).strip()
 
 def _content_hash(b: bytes) -> str:
     return hashlib.md5(b).hexdigest()[:8]
 
 def _prefix_from_date(date_hdr: str) -> str:
-    """Parse email 'Date' header into YYYY-MM-DD, fallback to today."""
     try:
         dt = email.utils.parsedate_to_datetime(date_hdr)
         if dt.tzinfo:
@@ -83,32 +59,41 @@ def _prefix_from_date(date_hdr: str) -> str:
         return datetime.today().strftime("%Y-%m-%d")
 
 def _save_unique(base_dir: Path, suggested_name: str, payload: bytes) -> Path:
-    """
-    Save bytes; avoid overwriting different content with same name by appending short hash.
-    If identical content already exists, skip writing.
-    """
     out_path = base_dir / suggested_name
     if out_path.exists():
         existing = out_path.read_bytes()
         if existing == payload:
-            return out_path  # identical, nothing to do
+            return out_path
         stem, ext = out_path.stem, out_path.suffix
         out_path = base_dir / f"{stem}__{_content_hash(payload)}{ext}"
     out_path.write_bytes(payload)
     return out_path
 
-# ----------------------------
-# Main
-# ----------------------------
+def _debug_list_recent_inbox(M: imaplib.IMAP4_SSL, limit=20):
+    print("\n[DEBUG] Last messages in INBOX from sender (up to 20):")
+    criteria = ["FROM", f'"{SENDER}"'] if SENDER else ["ALL"]
+    typ, data = M.search(None, *criteria)
+    if typ != "OK" or not data or not data[0]:
+        print("[DEBUG] Could not list INBOX messages for diagnostics.")
+        return
+    all_ids = data[0].split()
+    for msg_id in reversed(all_ids[-limit:]):
+        typ, msg_data = M.fetch(msg_id, "(RFC822.HEADER)")
+        if typ != "OK":
+            continue
+        msg = email.message_from_bytes(msg_data[0][1])
+        subj = _decode(msg.get("Subject"))
+        frm  = _decode(msg.get("From"))
+        date_hdr = _decode(msg.get("Date"))
+        print(f"  - {msg_id.decode():>6} | {date_hdr} | {frm} | Subject: {subj}")
+
 def download():
-    # Basic sanity check for required secrets
     if not IMAP_USER or not IMAP_PASS:
-        print("[ERROR] IMAP_USER and IMAP_PASS must be set in your .env at the project root.")
-        print("Example .env:\n  IMAP_USER=your_email@example.com\n  IMAP_PASS=your_app_password")
+        print("[ERROR] IMAP_USER and IMAP_PASS must be set in your .env at the repo root.")
         sys.exit(1)
 
     print(f"[INFO] Saving to: {SAVE_DIR}")
-    print(f"[INFO] Connecting to IMAP: {IMAP_HOST} as {IMAP_USER}")
+    print(f"[INFO] Connecting: {IMAP_HOST} as {IMAP_USER}")
 
     M = imaplib.IMAP4_SSL(IMAP_HOST)
     try:
@@ -117,60 +102,68 @@ def download():
         print(f"[ERROR] Login failed: {e}")
         sys.exit(2)
 
-    M.select("INBOX")
+    typ, _ = M.select(MAILBOX)
+    if typ != "OK":
+        print(f"[ERROR] Could not select mailbox {MAILBOX}.")
+        M.logout()
+        sys.exit(3)
+    print(f"[INFO] Selected mailbox: {MAILBOX}")
 
-    # Build IMAP search query (args passed separately to imaplib.search)
+    # Standard IMAP search in INBOX
     criteria = ["SINCE", SINCE_DATE]
     if SENDER:
         criteria += ["FROM", f'"{SENDER}"']
-    if SUBJECT_KEY:
-        criteria += ["SUBJECT", f'"{SUBJECT_KEY}"']
-
     typ, data = M.search(None, *criteria)
     if typ != "OK":
         print("[ERROR] IMAP search failed:", data)
-        M.close()
-        M.logout()
-        sys.exit(3)
+        M.close(); M.logout(); sys.exit(4)
 
-    msg_ids = data[0].split()
-    print(f"[INFO] Found {len(msg_ids)} matching message(s) since {SINCE_DATE}")
+    ids = data[0].split() if data and data[0] else []
+    print(f"[INFO] Candidate messages from sender since {SINCE_DATE}: {len(ids)}")
 
+    if not ids and DEBUG_LIST:
+        _debug_list_recent_inbox(M, limit=20)
+        M.close(); M.logout()
+        print(f"[DONE] Saved 0 attachment(s) to {SAVE_DIR}")
+        return
+
+    TARGET_SUBJ = _norm_subject(SUBJECT_KEY)
+    seen_days = set()
     saved = 0
-    for msg_id in msg_ids:
+
+    for msg_id in ids:
         typ, msg_data = M.fetch(msg_id, "(RFC822)")
         if typ != "OK":
-            print(f"[WARN] Skipping message id {msg_id.decode()}: fetch failed")
             continue
-
         msg = email.message_from_bytes(msg_data[0][1])
         subj = _decode(msg.get("Subject"))
-        frm  = _decode(msg.get("From"))
-        date_hdr = _decode(msg.get("Date"))
-        date_prefix = _prefix_from_date(date_hdr)
+        if _norm_subject(subj) != TARGET_SUBJ:
+            continue  # exact subject match only
 
+        date_hdr = _decode(msg.get("Date"))
+        day_key = _prefix_from_date(date_hdr)  # YYYY-MM-DD (email day)
+        if day_key in seen_days:
+            continue  # keep at most one file per day
+        seen_days.add(day_key)
+
+        frm  = _decode(msg.get("From"))
         for part in msg.walk():
             if part.get_content_disposition() != "attachment":
                 continue
-
             fname = _decode(part.get_filename() or "")
             if not fname:
                 continue
-
             ext = Path(fname).suffix.lower()
             if ext not in ALLOWED_EXT:
                 continue
-
             payload = part.get_payload(decode=True) or b""
             safe_name = _safe_filename(fname)
-            suggested = f"{date_prefix}__{safe_name}"
+            suggested = f"{day_key}__{safe_name}"
             out_path = _save_unique(SAVE_DIR, suggested, payload)
-
             print(f"[SAVE] {out_path.name}  (From: {frm}; Subject: {subj})")
             saved += 1
 
-    M.close()
-    M.logout()
+    M.close(); M.logout()
     print(f"[DONE] Saved {saved} attachment(s) to {SAVE_DIR}")
 
 if __name__ == "__main__":

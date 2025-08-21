@@ -32,9 +32,9 @@ COL_KEYS = {
     ],
     "actual_hours":     ["actual hours", "labor hours", "labour hours", "hours", "hrs"],
     "actual_labor":     ["actual labor", "actual labour", "labor $", "labour $", "labor amount", "labour amount", "labor cost", "labour cost"],
-    "sales_value":      ["net sales", "sales value", "sales $", "sales amount"],
+    "sales_value":      ["net sales", "sales value", "sales $", "sales amount", "sales"],
     "check_count":      ["checks", "check count", "transactions", "tickets"],
-    "splh":             ["splh", "sales per labor hour", "sales per labour hour", "sales/labor hr", "sales/labour hr", "sales per lab hr"],
+    "sales_per_labour_hour": ["splh", "sales per labor hour", "sales per labour hour", "sales/labor hr", "sales/labour hr", "sales per lab hr", "sales / labor hour - mm"],
     "scheduled_hours":  ["scheduled hours", "sched hours", "schedule hours", "scheduled hrs", "sched. hours", "sch hours"],
 }
 
@@ -186,7 +186,7 @@ def parse_one_sheet(path: Path, sheet_name: str) -> pd.DataFrame:
     col_act_lab   = pick_col(df, COL_KEYS["actual_labor"])
     col_sales     = pick_col(df, COL_KEYS["sales_value"])
     col_checks    = pick_col(df, COL_KEYS["check_count"])
-    col_splh      = pick_col(df, COL_KEYS["splh"])
+    col_sales_per_labour_hour = pick_col(df, COL_KEYS["sales_per_labour_hour"])
     col_sched     = pick_col(df, COL_KEYS["scheduled_hours"])
 
     if not col_hour:
@@ -195,7 +195,7 @@ def parse_one_sheet(path: Path, sheet_name: str) -> pd.DataFrame:
             print(df.head(25))
         return pd.DataFrame()
 
-    keep = [col_hour, col_act_hrs, col_act_lab, col_sales, col_checks, col_splh, col_sched]
+    keep = [col_hour, col_act_hrs, col_act_lab, col_sales, col_checks, col_sales_per_labour_hour, col_sched]
     keep = [c for c in keep if c]
     sub = df[keep].copy()
     sub = drop_total_rows(sub)
@@ -206,12 +206,13 @@ def parse_one_sheet(path: Path, sheet_name: str) -> pd.DataFrame:
     if col_act_lab: rn[col_act_lab] = "actual_labor"
     if col_sales:   rn[col_sales]   = "sales_value"
     if col_checks:  rn[col_checks]  = "check_count"
-    if col_splh:    rn[col_splh]    = "sales_per_labor_hour"
+    if col_sales_per_labour_hour:
+        rn[col_sales_per_labour_hour] = "sales_per_labour_hour"
     if col_sched:   rn[col_sched]   = "scheduled_hours"
     sub = sub.rename(columns=rn)
 
     # Cast numerics
-    for col in ["actual_hours","actual_labor","sales_value","check_count","sales_per_labor_hour","scheduled_hours"]:
+    for col in ["actual_hours","actual_labor","sales_value","check_count","sales_per_labour_hour","scheduled_hours"]:
         if col in sub.columns:
             sub[col] = sub[col].map(to_num)
 
@@ -225,11 +226,11 @@ def parse_one_sheet(path: Path, sheet_name: str) -> pd.DataFrame:
     sub["date"] = bdate
 
     # Order columns and clean
-    for col in ["actual_hours","actual_labor","sales_value","check_count","sales_per_labor_hour","scheduled_hours"]:
+    for col in ["actual_hours","actual_labor","sales_value","check_count","sales_per_labour_hour","scheduled_hours"]:
         if col not in sub.columns:
             sub[col] = None
 
-    sub = sub[["pc_number","date","hour_range","actual_hours","actual_labor","sales_value","check_count","sales_per_labor_hour","scheduled_hours"]]
+    sub = sub[["pc_number","date","hour_range","actual_hours","actual_labor","sales_value","check_count","sales_per_labour_hour","scheduled_hours"]]
     sub = sub.dropna(subset=["pc_number","date"])
     sub = sub.dropna(how="all", subset=["actual_hours","actual_labor","sales_value","check_count","sales_per_labor_hour","scheduled_hours"])
     sub = sub.drop_duplicates(subset=["pc_number","date","hour_range"])

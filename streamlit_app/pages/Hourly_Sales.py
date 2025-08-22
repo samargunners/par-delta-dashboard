@@ -79,12 +79,18 @@ def checkbox_multiselect(label: str, options: list, key: str, default=None, in_s
         all_filtered_selected = len(filtered) > 0 and all(o in current_sel for o in filtered)
 
         col1, col2 = st.columns([1, 1])
+        # Track if select all or clear was pressed
+        select_all_pressed = False
+        clear_pressed = False
         with col1:
-            if st.checkbox("Select All", value=all_filtered_selected, key=f"{key}_select_all"):
+            select_all = st.checkbox("Select All", value=all_filtered_selected, key=f"{key}_select_all")
+            if select_all and not all_filtered_selected:
                 current_sel = current_sel.union(set(filtered))
+                select_all_pressed = True
         with col2:
             if st.button("Clear", key=f"{key}_clear_btn"):
                 current_sel = current_sel.difference(set(filtered))
+                clear_pressed = True
 
         if len(filtered) == 0:
             st.caption("No results.")
@@ -97,6 +103,16 @@ def checkbox_multiselect(label: str, options: list, key: str, default=None, in_s
                     current_sel.add(o)
                 else:
                     current_sel.discard(o)
+
+        # If clear was pressed, also uncheck select all
+        if clear_pressed:
+            st.session_state[f"{key}_select_all"] = False
+
+        # If not all filtered are selected, uncheck select all
+        if not (len(filtered) > 0 and all(o in current_sel for o in filtered)):
+            st.session_state[f"{key}_select_all"] = False
+        elif len(filtered) > 0 and all(o in current_sel for o in filtered):
+            st.session_state[f"{key}_select_all"] = True
 
         _ = st.button("Filter", type="primary", key=f"{key}_apply_btn")  # cosmetic; state already applied
         st.session_state[sel_key] = sorted(current_sel)

@@ -1,3 +1,4 @@
+# streamlit_app/pages/Hourly_Sales_Labor.py
 import streamlit as st
 import pandas as pd
 from supabase import create_client
@@ -18,43 +19,89 @@ key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
 
 # -------------------------------
-# Utility
+# Utilities
 # -------------------------------
-def _parse_hour_start(hr: str):
-    """
-    Parse hour_range like '02:00-02:59' -> time(02:00) for proper sorting.
-    Returns (hour:int, minute:int) fallback to large number if bad.
-    """
+def parse_hour_key(hr: str):
+    """Parse 'HH:MM-HH:MM' -> (HH, MM) for sorting; fallback high for bad values."""
     try:
-        start = hr.split("-")[0]  # 'HH:MM'
+        start = hr.split("-")[0]
         hh, mm = start.split(":")
         return (int(hh), int(mm))
     except Exception:
         return (99, 99)
 
-def _ensure_date_range(value):
-    """
-    Streamlit's date_input can return a single date or a tuple/list.
-    Normalize to (start, end).
-    """
+def ensure_date_range(value):
+    """Normalize Streamlit date_input output to (start_date, end_date)."""
     if isinstance(value, (list, tuple)) and len(value) == 2:
         return value[0], value[1]
     if isinstance(value, date):
         return value, value
-    # Fallback: today
-    return date.today(), date.today()
+    today = date.today()
+    return today, today
 
-def _fmt_currency(x):
+def fmt_currency(x, ndigits=0):
     try:
-        return f"${x:,.0f}"
+        return f"${x:,.{ndigits}f}" if ndigits else f"${x:,.0f}"
     except Exception:
         return "—"
 
-def _fmt_float(x, ndigits=2):
-    try:
-        return f"{x:.{ndigits}f}"
-    except Exception:
-        return "—"
+# Checkbox-style multiselect (search + select all + clear + filter button)
+def checkbox_multiselect(label: str, options: list, key: str, default=None, in_sidebar=True):
+    """
+    Checkbox-based multi-select with search, 'Select All', 'Clear', and 'Filter' buttons.
+    Returns: list of selected options.
+    """
+    if default is None:
+        default = options
+
+    sel_key = f"{key}_selected"
+    search_key = f"{key}_search"
+    tick_keys_key = f"{key}_tick_keys"
+
+    if sel_key not in st.session_state:
+        st.session_state[sel_key] = list(default)
+    if search_key not in st.session_state:
+        st.session_state[search_key] = ""
+    if tick_keys_key not in st.session_state:
+        st.session_state[tick_keys_key] = {opt: f"{key}_opt_{i}" for i, opt in enumerate(options)}
+
+    container = st.sidebar if in_sidebar else st
+    use_popover = hasattr(st, "popover")
+    wrapper = container.popover(label) if use_popover else container.expander(label, expanded=False)
+
+    with wrapper:
+        # Search box
+        st.session_state[search_key] = st.text_input("Search", value=st.session_state[search_key], key=f"{key}_searchbox")
+        q = st.session_state[search_key].strip().lower()
+        filtered = [o for o in options if q in str(o).lower()] if q else options
+
+        current_sel = set(st.session_state[sel_key])
+        all_filtered_selected = len(filtered) > 0 and all(o in current_sel for o in filtered)
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.checkbox("Select All", value=all_filtered_selected, key=f"{key}_select_all"):
+                current_sel = current_sel.union(set(filtered))
+        with col2:
+            if st.button("Clear", key=f"{key}_clear_btn"):
+                current_sel = current_sel.difference(set(filtered))
+
+        if len(filtered) == 0:
+            st.caption("No results.")
+        else:
+            for o in filtered:
+                ck = st.session_state[tick_keys_key][o]
+                checked = o in current_sel
+                new_checked = st.checkbox(str(o), value=checked, key=ck)
+                if new_checked:
+                    current_sel.add(o)
+                else:
+                    current_sel.discard(o)
+
+        _ = st.button("Filter", type="primary", key=f"{key}_apply_btn")  # cosmetic; state already applied
+        st.session_state[sel_key] = sorted(current_sel)
+
+    return st.session_state[sel_key]
 
 # -------------------------------
 # Data Fetching
@@ -66,22 +113,22 @@ def load_all_rows(table, columns="*"):
     offset = 0
     while True:
         resp = supabase.table(table).select(columns).range(offset, offset + chunk_size - 1).execute()
-        data_chunk = resp.data
-        if not data_chunk:
+        chunk = resp.data
+        if not chunk:
             break
-        all_data.extend(data_chunk)
+        all_data.extend(chunk)
         offset += chunk_size
     return pd.DataFrame(all_data)
 
-# Button to clear cache & rerun (handy on Streamlit Cloud)
-col_refresh, _ = st.columns([1, 8])
-with col_refresh:
+# Refresh (clear cache) button
+left, _ = st.columns([1, 8])
+with left:
     if st.button("🔄 Refresh (Clear Cache)"):
         st.cache_data.clear()
         st.rerun()
 
 # -------------------------------
-# Load Data
+# Load & Preprocess
 # -------------------------------
 df = load_all_rows(
     "actual_table_labor",
@@ -89,26 +136,29 @@ df = load_all_rows(
 )
 
 if df.empty:
-    st.error("❌ No data found in `actual_table_labor` table.")
+    st.error("❌ No data found in `actual_table_labor`.")
     st.stop()
 
-# Preprocess
 df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
 df = df.dropna(subset=["date"]).copy()
 df["pc_number"] = df["pc_number"].astype(str)
 df["hour_range"] = df["hour_range"].astype(str)
-
-# For hour sorting
-df["_hour_key"] = df["hour_range"].apply(_parse_hour_start)
+df["_hour_key"] = df["hour_range"].apply(parse_hour_key)
 
 # -------------------------------
 # Sidebar Filters
 # -------------------------------
 st.sidebar.header("🔎 Filters")
 
-# Store filter
+# Stores
 stores = sorted(df["pc_number"].unique())
-store_filter = st.sidebar.multiselect("Store(s) / PC Number(s)", stores, default=stores)
+selected_stores = checkbox_multiselect(
+    label="Stores / PC Numbers",
+    options=stores,
+    key="stores_filter",
+    default=stores,
+    in_sidebar=True
+)
 
 # Date presets
 dates_all = sorted(df["date"].unique())
@@ -126,50 +176,54 @@ if preset == "Today":
 elif preset == "Last 7 days":
     start_date, end_date = max(min_date, max_date - timedelta(days=6)), max_date
 else:
-    custom = st.sidebar.date_input("Custom range", value=(min_date, max_date))
-    start_date, end_date = _ensure_date_range(custom)
+    custom_range = st.sidebar.date_input("Custom range", value=(min_date, max_date))
+    start_date, end_date = ensure_date_range(custom_range)
 
-# Hour filter (sorted by start time)
-hours_all = sorted(df["hour_range"].unique(), key=_parse_hour_start)
-hour_filter = st.sidebar.multiselect("Hour Range(s)", hours_all, default=hours_all)
+# Hours
+hours_all = sorted(df["hour_range"].unique(), key=parse_hour_key)
+selected_hours = checkbox_multiselect(
+    label="Hour Range(s)",
+    options=hours_all,
+    key="hours_filter",
+    default=hours_all,
+    in_sidebar=True
+)
 
 # -------------------------------
 # Apply Filters
 # -------------------------------
 mask = (
-    df["pc_number"].isin(store_filter)
+    df["pc_number"].isin(selected_stores)
     & df["date"].between(start_date, end_date)
-    & df["hour_range"].isin(hour_filter)
+    & df["hour_range"].isin(selected_hours)
 )
 
 filtered = df.loc[mask].copy()
 filtered.sort_values(by=["date", "_hour_key", "pc_number"], inplace=True)
 
-# -------------------------------
-# Header KPIs
-# -------------------------------
 if filtered.empty:
     st.info("ℹ️ No data for the selected filters. Try expanding the date range or selecting different stores/hours.")
     st.stop()
 
+# -------------------------------
+# KPIs
+# -------------------------------
 total_sales = filtered["sales_value"].fillna(0).sum()
 total_labor = filtered["actual_labor"].fillna(0).sum()
-total_checks = filtered["check_count"].fillna(0).sum()
-# Weighted SPLH fallback: if not present, compute as sales / hours
+total_checks = int(filtered["check_count"].fillna(0).sum())
+
 has_splh = filtered["sales_per_labor_hour"].notna().any()
 if has_splh:
-    # Average SPLH across rows (not weighted)
     splh_value = filtered["sales_per_labor_hour"].dropna().mean()
 else:
-    # Weighted by actual_hours to avoid division by zero
     hours_sum = filtered["actual_hours"].fillna(0).sum()
     splh_value = (total_sales / hours_sum) if hours_sum else 0
 
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Sales", _fmt_currency(total_sales))
-k2.metric("Labor $", _fmt_currency(total_labor))
-k3.metric("Checks", f"{int(total_checks):,}")
-k4.metric("Sales / Labor Hour", _fmt_currency(splh_value))
+k1.metric("Sales", fmt_currency(total_sales))
+k2.metric("Labor $", fmt_currency(total_labor))
+k3.metric("Checks", f"{total_checks:,}")
+k4.metric("Sales / Labor Hour", fmt_currency(splh_value))
 
 # -------------------------------
 # Tabs: Charts / Table
@@ -177,7 +231,6 @@ k4.metric("Sales / Labor Hour", _fmt_currency(splh_value))
 tab_charts, tab_table = st.tabs(["📈 Charts", "🧾 Table"])
 
 with tab_charts:
-    # Sales by hour (grouped by store)
     st.subheader("Hourly Sales Value by Store")
     fig_sales = px.bar(
         filtered,
@@ -191,7 +244,6 @@ with tab_charts:
     fig_sales.update_layout(margin=dict(l=10, r=10, t=40, b=10))
     st.plotly_chart(fig_sales, use_container_width=True)
 
-    # Labor by hour (line)
     st.subheader("Hourly Labor ($) by Store")
     fig_labor = px.line(
         filtered,
@@ -205,11 +257,9 @@ with tab_charts:
     fig_labor.update_layout(margin=dict(l=10, r=10, t=40, b=10))
     st.plotly_chart(fig_labor, use_container_width=True)
 
-    # Optional: SPLH by hour
     st.subheader("Sales per Labor Hour (SPLH)")
     splh_df = filtered.copy()
     if not has_splh:
-        # Compute per row if missing
         splh_df["sales_per_labor_hour"] = splh_df.apply(
             lambda r: (r["sales_value"] / r["actual_hours"]) if r.get("actual_hours", 0) else None, axis=1
         )
@@ -227,20 +277,14 @@ with tab_charts:
 
 with tab_table:
     st.subheader("Filtered Hourly Sales & Labor Data")
-    # Pretty table ordering
-    show_cols = [
+    cols_show = [
         "pc_number", "date", "hour_range",
         "actual_hours", "actual_labor",
         "sales_value", "check_count", "sales_per_labor_hour"
     ]
-    table_df = filtered[show_cols].sort_values(by=["date", "_hour_key", "pc_number"])
-    st.dataframe(
-        table_df,
-        use_container_width=True,
-        hide_index=True
-    )
+    table_df = filtered[cols_show].sort_values(by=["date", "_hour_key", "pc_number"])
+    st.dataframe(table_df, use_container_width=True, hide_index=True)
 
-    # Download
     csv = table_df.to_csv(index=False).encode("utf-8")
     st.download_button(
         "⬇️ Download CSV",
@@ -250,14 +294,15 @@ with tab_table:
     )
 
 # -------------------------------
-# Footer helpers
+# Helper
 # -------------------------------
 with st.expander("ℹ️ How to use this page"):
     st.markdown(
         """
 - Use the **sidebar** to filter by store(s), date range (with quick presets), and hour ranges.
+- Checkbox filters support **search**, **Select All**, and **Clear**, similar to grid UIs.
 - **Charts** show sales, labor, and SPLH by hour with proper hour sorting.
-- **Table** provides an export of the filtered data for deeper analysis.
-- Click **Refresh** at the top if you've just uploaded or updated data.
+- **Table** provides an export of the filtered data.
+- Click **Refresh** if you've just uploaded or updated data.
         """
     )

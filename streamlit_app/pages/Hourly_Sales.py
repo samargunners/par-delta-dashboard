@@ -283,9 +283,13 @@ with tab_table:
         "sales_value", "check_count", "sales_per_labor_hour"
     ]
     required_sort_cols = ["date", "_hour_key", "pc_number"]
-    missing_cols = [col for col in required_sort_cols if col not in filtered.columns]
-    if missing_cols:
-        st.warning(f"Cannot sort table: missing columns {missing_cols}. Please check your data source or filters.")
+    missing_in_filtered = [col for col in required_sort_cols if col not in filtered.columns]
+    missing_in_cols_show = [col for col in required_sort_cols if col not in cols_show]
+    if missing_in_filtered or missing_in_cols_show:
+        st.warning(
+            f"Cannot sort table: missing columns in data {missing_in_filtered} or not selected {missing_in_cols_show}. "
+            "Please check your data source, filters, or column selection."
+        )
         table_df = filtered[cols_show]
     else:
         table_df = filtered[cols_show].sort_values(by=required_sort_cols)

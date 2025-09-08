@@ -124,28 +124,5 @@ if __name__ == "__main__":
 
 
 
-    # --- Optional: upload to Supabase ---
-    # pip install supabase
-    from supabase import create_client
-    import os, math
-
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")  # use service role for server scripts
-    TABLE_NAME   = os.getenv("SUPABASE_TABLE", "hme_dayparts")
-
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-    # convert timestamps and NaNs for Supabase
-    payload = df_out.where(pd.notnull(df_out), None).to_dict(orient="records")
-
-    # upsert or insert in chunks
-    chunk = 500
-    for i in range(0, len(payload), chunk):
-        batch = payload[i:i+chunk]
-        # .upsert(batch, on_conflict="store,Date,time_measure")  # if you set a unique index
-        res = supabase.table(TABLE_NAME).insert(batch).execute()
-        if res.data is None and res.count == 0:
-            print("[WARN] Insert returned no data; check RLS/policies.")
-    print("[OK] Uploaded to Supabase:", TABLE_NAME)
-
+  
 

@@ -24,7 +24,6 @@ DEBUG_LIST  = int(os.getenv("IMAP_DEBUG_LIST", "1"))
 
 ALLOWED_EXT = {".xlsx", ".xls"}
 
-SCRIPT_PATH  = Path(__file__).resolve()
 PROJECT_ROOT = SCRIPT_PATH.parents[2]
 SAVE_DIR     = PROJECT_ROOT / "data" / "raw" / "labour" / "actual_labor"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)

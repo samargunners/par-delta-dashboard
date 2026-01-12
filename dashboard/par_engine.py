@@ -1,11 +1,16 @@
+
 """
 Par Engine: Centralized logic for Par Level calculations
+Update DB_PATH to match your actual database location and connector.
 """
 import pandas as pd
-import sqlite3  # Replace with your actual DB connector
+import sqlite3  # Replace with your actual DB connector if needed
+import os
 
-DB_PATH = 'database/your_database.db'  # Update as needed
+# Update this path to your actual database file
+DB_PATH = os.path.join(os.path.dirname(__file__), '../database/your_database.db')
 
+# --- Par Engine Functions ---
 def get_par_methods():
     """Fetch available par calculation methods."""
     conn = sqlite3.connect(DB_PATH)

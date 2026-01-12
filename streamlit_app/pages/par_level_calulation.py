@@ -35,6 +35,15 @@ safety_percent = st.sidebar.slider("Safety Buffer %", min_value=0, max_value=50,
 with st.spinner("Calculating par levels..."):
     df_results = par_engine.get_par_results(selected_key, coverage_days, safety_percent)
 
+# --- Store Filter ---
+if not df_results.empty:
+    stores_list = ['All Stores'] + sorted(df_results['pc_number'].unique().tolist())
+    selected_store = st.sidebar.selectbox("Filter by Store", stores_list)
+    
+    # Apply store filter
+    if selected_store != 'All Stores':
+        df_results = df_results[df_results['pc_number'] == selected_store]
+
 # --- Display Results ---
 if df_results.empty:
     st.warning("No data available for par level calculation. Please ensure variance_report_summary table has data.")

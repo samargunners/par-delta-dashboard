@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Download HME (Hourly Metrics & Efficiency) reports from Gmail attachments.
+This script searches for emails with HME reports and downloads the Excel attachments.
+"""
 import email
 import imaplib
 import os
@@ -6,32 +10,33 @@ import sys
 import hashlib
 from email.header import decode_header, make_header
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# Fix: Define SCRIPT_PATH properly
+SCRIPT_PATH = Path(__file__).resolve()
 
 IMAP_HOST   = os.getenv("IMAP_HOST", "imap.gmail.com")
 IMAP_USER   = os.getenv("IMAP_USER", "")
 IMAP_PASS   = os.getenv("IMAP_PASS", "")
 MAILBOX     = "INBOX"
 
-SENDER      = os.getenv("IMAP_SENDER", "biziq@crunchtime.it")
-SUBJECT_KEY = os.getenv("IMAP_SUBJECT_KEY", "Hourly Sales & Labour Prompted")
-# Fix: Use dynamic date (30 days back) instead of hardcoded date to avoid Dec 31 issue
-from datetime import timedelta
-days_back = int(os.getenv("IMAP_DAYS_BACK", "30"))
+# HME-specific settings
+SENDER      = os.getenv("HME_IMAP_SENDER", "")  # Set in .env if different from default
+SUBJECT_KEY = os.getenv("HME_IMAP_SUBJECT_KEY", "HME")  # Subject keyword to search for
+# Default to 30 days ago to catch recent emails (fixes Dec 31 issue)
+days_back = int(os.getenv("HME_IMAP_DAYS_BACK", "30"))
 default_since = (datetime.now() - timedelta(days=days_back)).strftime("%d-%b-%Y")
-SINCE_DATE  = os.getenv("IMAP_SINCE", default_since)  # DD-MMM-YYYY
-DEBUG_LIST  = int(os.getenv("IMAP_DEBUG_LIST", "1"))
+SINCE_DATE  = os.getenv("HME_IMAP_SINCE", default_since)  # DD-MMM-YYYY format
+DEBUG_LIST  = int(os.getenv("HME_IMAP_DEBUG_LIST", "1"))
 
 ALLOWED_EXT = {".xlsx", ".xls"}
 
-# Fix: Define SCRIPT_PATH properly
-SCRIPT_PATH = Path(__file__).resolve()
 PROJECT_ROOT = SCRIPT_PATH.parents[2]
-SAVE_DIR     = PROJECT_ROOT / "data" / "raw" / "labour" / "actual_labor"
+SAVE_DIR     = PROJECT_ROOT / "data" / "raw" / "hme"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
 def _decode(s: Optional[str]) -> str:
@@ -75,7 +80,7 @@ def _save_unique(base_dir: Path, suggested_name: str, payload: bytes) -> Path:
     return out_path
 
 def _debug_list_recent_inbox(M: imaplib.IMAP4_SSL, limit=20):
-    print("\n[DEBUG] Last messages in INBOX from sender (up to 20):")
+    print("\n[DEBUG] Last messages in INBOX (up to 20):")
     criteria = ["FROM", f'"{SENDER}"'] if SENDER else ["ALL"]
     typ, data = M.search(None, *criteria)
     if typ != "OK" or not data or not data[0]:
@@ -97,8 +102,13 @@ def download():
         print("[ERROR] IMAP_USER and IMAP_PASS must be set in your .env at the repo root.")
         sys.exit(1)
 
+    print(f"[INFO] HME Download Script")
     print(f"[INFO] Saving to: {SAVE_DIR}")
     print(f"[INFO] Connecting: {IMAP_HOST} as {IMAP_USER}")
+    print(f"[INFO] Searching since: {SINCE_DATE}")
+    print(f"[INFO] Subject keyword: {SUBJECT_KEY}")
+    if SENDER:
+        print(f"[INFO] Sender filter: {SENDER}")
 
     M = imaplib.IMAP4_SSL(IMAP_HOST)
     try:
@@ -124,7 +134,7 @@ def download():
         M.close(); M.logout(); sys.exit(4)
 
     ids = data[0].split() if data and data[0] else []
-    print(f"[INFO] Candidate messages from sender since {SINCE_DATE}: {len(ids)}")
+    print(f"[INFO] Candidate messages since {SINCE_DATE}: {len(ids)}")
 
     if not ids and DEBUG_LIST:
         _debug_list_recent_inbox(M, limit=20)
@@ -142,8 +152,10 @@ def download():
             continue
         msg = email.message_from_bytes(msg_data[0][1])
         subj = _decode(msg.get("Subject"))
-        if _norm_subject(subj) != TARGET_SUBJ:
-            continue  # exact subject match only
+        
+        # Check if subject contains HME keyword (case-insensitive)
+        if TARGET_SUBJ not in _norm_subject(subj):
+            continue
 
         date_hdr = _decode(msg.get("Date"))
         day_key = _prefix_from_date(date_hdr)  # YYYY-MM-DD (email day)
@@ -173,3 +185,5 @@ def download():
 
 if __name__ == "__main__":
     download()
+
+

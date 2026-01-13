@@ -73,11 +73,15 @@ if date_range:
 # --- Merge and Calculate Punctuality ---
 merged_df = pd.merge(filtered_clockin, employee_schedules_df, on=["employee_id", "date"], suffixes=("_clockin", "_schedule"))
 if not merged_df.empty:
-    merged_df["scheduled_start"] = pd.to_datetime(merged_df["scheduled_start"], errors="coerce")
-    merged_df["clockin_time"] = pd.to_datetime(merged_df["clockin_time"], errors="coerce")
-    merged_df["punctuality_minutes"] = (merged_df["clockin_time"] - merged_df["scheduled_start"]).dt.total_seconds() / 60
+    # Handle column names based on what's available after merge
+    scheduled_col = "scheduled_start" if "scheduled_start" in merged_df.columns else "scheduled_start_schedule"
+    clockin_col = "clockin_time" if "clockin_time" in merged_df.columns else "clockin_time_clockin"
+    
+    merged_df[scheduled_col] = pd.to_datetime(merged_df[scheduled_col], errors="coerce")
+    merged_df[clockin_col] = pd.to_datetime(merged_df[clockin_col], errors="coerce")
+    merged_df["punctuality_minutes"] = (merged_df[clockin_col] - merged_df[scheduled_col]).dt.total_seconds() / 60
     st.subheader("Employee Punctuality Table")
-    st.dataframe(merged_df[["employee_id", "date", "scheduled_start", "clockin_time", "punctuality_minutes"]])
+    st.dataframe(merged_df[["employee_id", "date", scheduled_col, clockin_col, "punctuality_minutes"]])
     st.subheader("Punctuality Distribution")
     fig = px.histogram(merged_df, x="punctuality_minutes", nbins=30, title="Distribution of Punctuality (Minutes)")
     st.plotly_chart(fig, use_container_width=True)

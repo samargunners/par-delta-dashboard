@@ -74,8 +74,10 @@ if date_range:
 merged_df = pd.merge(filtered_clockin, employee_schedules_df, on=["employee_id", "date"], suffixes=("_clockin", "_schedule"))
 if not merged_df.empty:
     # Handle column names based on what's available after merge
-    # Check all possible column name variations
-    if "scheduled_start" in merged_df.columns:
+    # The actual columns are: start_time (scheduled) and time_in (clock-in)
+    if "start_time" in merged_df.columns:
+        scheduled_col = "start_time"
+    elif "scheduled_start" in merged_df.columns:
         scheduled_col = "scheduled_start"
     elif "scheduled_start_schedule" in merged_df.columns:
         scheduled_col = "scheduled_start_schedule"
@@ -87,7 +89,9 @@ if not merged_df.empty:
         st.error(f"Cannot find scheduled start column. Available columns: {list(merged_df.columns)}")
         st.stop()
     
-    if "clockin_time" in merged_df.columns:
+    if "time_in" in merged_df.columns:
+        clockin_col = "time_in"
+    elif "clockin_time" in merged_df.columns:
         clockin_col = "clockin_time"
     elif "clockin_time_clockin" in merged_df.columns:
         clockin_col = "clockin_time_clockin"

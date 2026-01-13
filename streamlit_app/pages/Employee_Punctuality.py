@@ -34,7 +34,10 @@ def load_all_rows(table):
 employee_profile_df = load_all_rows("employee_profile")
 employee_clockin_df = load_all_rows("employee_clockin")
 employee_schedules_df = load_all_rows("employee_schedules")
-stores_df = load_all_rows("stores") if "stores" in supabase.table_names() else pd.DataFrame()
+try:
+    stores_df = load_all_rows("stores")
+except Exception:
+    stores_df = pd.DataFrame()
 
 if employee_profile_df.empty or employee_clockin_df.empty or employee_schedules_df.empty:
     st.error("❌ Required employee data is not available. Please upload all necessary data.")

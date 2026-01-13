@@ -107,7 +107,7 @@ if not merged_df.empty:
     merged_df[clockin_col] = pd.to_datetime(merged_df[clockin_col], errors="coerce")
     merged_df["punctuality_minutes"] = (merged_df[clockin_col] - merged_df[scheduled_col]).dt.total_seconds() / 60
     st.subheader("Employee Punctuality Table")
-    st.dataframe(merged_df[["employee_id", "date", scheduled_col, clockin_col, "punctuality_minutes"]])
+    st.dataframe(merged_df[["employee_name", "employee_id", "date", scheduled_col, clockin_col, "punctuality_minutes"]])
     st.subheader("Punctuality Distribution")
     fig = px.histogram(merged_df, x="punctuality_minutes", nbins=30, title="Distribution of Punctuality (Minutes)")
     st.plotly_chart(fig, use_container_width=True)

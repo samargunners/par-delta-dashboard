@@ -74,8 +74,30 @@ if date_range:
 merged_df = pd.merge(filtered_clockin, employee_schedules_df, on=["employee_id", "date"], suffixes=("_clockin", "_schedule"))
 if not merged_df.empty:
     # Handle column names based on what's available after merge
-    scheduled_col = "scheduled_start" if "scheduled_start" in merged_df.columns else "scheduled_start_schedule"
-    clockin_col = "clockin_time" if "clockin_time" in merged_df.columns else "clockin_time_clockin"
+    # Check all possible column name variations
+    if "scheduled_start" in merged_df.columns:
+        scheduled_col = "scheduled_start"
+    elif "scheduled_start_schedule" in merged_df.columns:
+        scheduled_col = "scheduled_start_schedule"
+    elif "scheduled_time" in merged_df.columns:
+        scheduled_col = "scheduled_time"
+    elif "scheduled_time_schedule" in merged_df.columns:
+        scheduled_col = "scheduled_time_schedule"
+    else:
+        st.error(f"Cannot find scheduled start column. Available columns: {list(merged_df.columns)}")
+        st.stop()
+    
+    if "clockin_time" in merged_df.columns:
+        clockin_col = "clockin_time"
+    elif "clockin_time_clockin" in merged_df.columns:
+        clockin_col = "clockin_time_clockin"
+    elif "clock_in_time" in merged_df.columns:
+        clockin_col = "clock_in_time"
+    elif "clock_in_time_clockin" in merged_df.columns:
+        clockin_col = "clock_in_time_clockin"
+    else:
+        st.error(f"Cannot find clock-in time column. Available columns: {list(merged_df.columns)}")
+        st.stop()
     
     merged_df[scheduled_col] = pd.to_datetime(merged_df[scheduled_col], errors="coerce")
     merged_df[clockin_col] = pd.to_datetime(merged_df[clockin_col], errors="coerce")

@@ -3,101 +3,131 @@ import pandas as pd
 from dashboard import par_engine
 
 st.set_page_config(page_title="Par Level Calculation", layout="wide")
-st.title("📊 Par Level Calculation System")
+st.title("📊 Par Level Calculation System (Cycle-Based)")
 
 st.markdown("""
-This system calculates inventory par levels using historical variance data. 
-Par levels help determine optimal stock quantities to maintain for each item.
+This system calculates **cycle-based par levels** from NDCP invoice history.
+
+**Cycle Par concept:**
+- It determines the **next order day** and the **delivery date** for that order.
+- Then it computes how many days that delivery must cover until the **next delivery**.
+- Par = Daily Usage Rate × Cycle Days × (1 + Safety %)
+
+Next step (later): add **On Hand** to compute **Suggested Order = Par − On Hand**.
 """)
 
-# --- Configuration Section ---
-st.sidebar.header("⚙️ Par Calculation Settings")
+# ---------------------------
+# Sidebar controls
+# ---------------------------
+st.sidebar.header("⚙️ Settings")
 
-# Fetch available par calculation methods
-df_methods = par_engine.get_par_methods()
-method_options = df_methods['method_name'].tolist()
-method_keys = df_methods['method_key'].tolist()
+window_days = st.sidebar.slider(
+    "History Window (days)",
+    min_value=30,
+    max_value=180,
+    value=90,
+    help="How many days of invoice history to use for computing daily usage."
+)
 
-selected_method_name = st.sidebar.selectbox("Select Calculation Method", method_options)
-selected_key = method_keys[method_options.index(selected_method_name)]
+safety_percent = st.sidebar.slider(
+    "Safety Buffer %",
+    min_value=0,
+    max_value=50,
+    value=20,
+    help="Extra buffer added on top of expected demand."
+)
 
-# Show method description
-method_desc = df_methods[df_methods['method_key'] == selected_key]['description'].iloc[0]
-st.sidebar.info(f"**Method:** {method_desc}")
+# ---------------------------
+# Compute results
+# ---------------------------
+with st.spinner("Calculating cycle-based par levels..."):
+    par_df, ctx_df = par_engine.get_par_for_next_order(
+        pc_number=None,
+        window_days=window_days,
+        safety_percent=safety_percent
+    )
 
-# Configuration parameters
-coverage_days = st.sidebar.slider("Coverage Days", min_value=7, max_value=60, value=14, 
-                                   help="Number of days of inventory to maintain")
-safety_percent = st.sidebar.slider("Safety Buffer %", min_value=0, max_value=50, value=20,
-                                    help="Additional safety stock percentage")
-
-# --- Calculate Par Levels ---
-with st.spinner("Calculating par levels..."):
-    df_results = par_engine.get_par_results(selected_key, coverage_days, safety_percent)
-
-# --- Store Filter ---
-if not df_results.empty:
-    stores_list = ['All Stores'] + sorted(df_results['pc_number'].unique().tolist())
-    selected_store = st.sidebar.selectbox("Filter by Store", stores_list)
-    
-    # Apply store filter
-    if selected_store != 'All Stores':
-        df_results = df_results[df_results['pc_number'] == selected_store]
-
-# --- Display Results ---
-if df_results.empty:
+if par_df.empty:
     st.warning("No data available for par level calculation. Please ensure ndcp_invoices table has data.")
     st.stop()
 
-st.subheader("📦 Par Level Results")
-st.markdown(f"**Method:** {selected_method_name} | **Coverage:** {coverage_days} days | **Safety Buffer:** {safety_percent}%")
+# ---------------------------
+# Store filter
+# ---------------------------
+stores_list = ['All Stores'] + sorted(par_df['pc_number'].unique().tolist())
+selected_store = st.sidebar.selectbox("Filter by Store (PC Number)", stores_list)
 
-# Format and display results
-display_cols = ['pc_number', 'item_name', 'daily_usage_rate', 'par_quantity', 
-                'avg_units_sold', 'total_units_sold', 'num_periods']
-df_display = df_results[display_cols].copy()
+if selected_store != "All Stores":
+    par_df = par_df[par_df["pc_number"] == selected_store].copy()
+    ctx_df = ctx_df[ctx_df["pc_number"] == selected_store].copy()
 
-# Format numeric columns
-df_display['daily_usage_rate'] = df_display['daily_usage_rate'].round(2)
-df_display['par_quantity'] = df_display['par_quantity'].astype(int)
-df_display['avg_units_sold'] = df_display['avg_units_sold'].round(2)
+# ---------------------------
+# Order context display
+# ---------------------------
+st.subheader("🗓️ Next Order Context")
 
-st.dataframe(df_display, use_container_width=True, height=400)
+if not ctx_df.empty:
+    # Context is same for all stores right now, but ctx_df supports per-store overrides later.
+    c = ctx_df.iloc[0]
 
-# --- Summary Stats ---
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Total Items", len(df_results))
-with col2:
-    st.metric("Total Par Units", int(df_results['par_quantity'].sum()))
-with col3:
-    st.metric("Avg Par per Item", int(df_results['par_quantity'].mean()))
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("Today", str(c["today"]))
+    with col2:
+        st.metric("Next Order Date", str(c["next_order_date"]))
+    with col3:
+        st.metric("Delivery Date (for that order)", str(c["next_delivery_date_for_order"]))
+    with col4:
+        st.metric("Next Delivery After That", str(c["next_delivery_after_that"]))
+    with col5:
+        st.metric("Cycle Days", int(c["cycle_days"]))
 
-# --- Item Detail Section ---
-st.subheader("🔍 Item Detail & Explanation")
-with st.expander("View detailed metrics for specific item"):
-    col_a, col_b = st.columns(2)
-    with col_a:
-        stores = ['All'] + sorted(df_results['pc_number'].unique().tolist())
-        selected_store = st.selectbox("Store (PC Number)", stores)
-    with col_b:
-        items = ['All'] + sorted(df_results['item_name'].unique().tolist())
-        selected_item = st.selectbox("Item Name", items)
-    
-    if selected_item != 'All' or selected_store != 'All':
-        item_filter = selected_item if selected_item != 'All' else None
-        store_filter = selected_store if selected_store != 'All' else None
-        
-        df_metrics = par_engine.get_inventory_metrics(item_filter, store_filter)
-        if not df_metrics.empty:
-            st.dataframe(df_metrics, use_container_width=True)
-        else:
-            st.info("No metrics available for selected filters.")
+    st.info(
+        f"**Cadence:** {c['cadence_type']}  |  "
+        f"**Safety Buffer:** {safety_percent}%  |  "
+        f"**History Window:** {window_days} days"
+    )
+else:
+    st.info("Context not available (unexpected).")
 
-# --- Download Results ---
+# ---------------------------
+# Results table
+# ---------------------------
+st.subheader("📦 Cycle Par Results")
+
+display_cols = [
+    "pc_number",
+    "item_number",
+    "item_name",
+    "category",
+    "daily_usage_rate",
+    "cycle_days",
+    "par_quantity",
+    "num_orders",
+    "total_qty",
+]
+df_display = par_df[display_cols].copy()
+df_display["daily_usage_rate"] = df_display["daily_usage_rate"].round(4)
+
+st.dataframe(df_display, use_container_width=True, height=500)
+
+# ---------------------------
+# Summary stats
+# ---------------------------
+colA, colB, colC = st.columns(3)
+with colA:
+    st.metric("Total Items", len(par_df))
+with colB:
+    st.metric("Total Par Units", int(par_df["par_quantity"].sum()))
+with colC:
+    st.metric("Avg Par per Item", int(par_df["par_quantity"].mean()) if len(par_df) else 0)
+
+# ---------------------------
+# Download
+# ---------------------------
 st.download_button(
-    label="📥 Download Par Levels (CSV)",
-    data=df_results.to_csv(index=False),
-    file_name=f"par_levels_{selected_key}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+    label="📥 Download Cycle Par (CSV)",
+    data=par_df.to_csv(index=False),
+    file_name=f"cycle_par_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
     mime="text/csv"
 )

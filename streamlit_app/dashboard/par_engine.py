@@ -1,200 +1,315 @@
+"""
+Par Engine v2: Cycle-based Par Level calculations
+- Pulls NDCP invoice history from Supabase (only required columns)
+- Computes daily usage as: total_qty_shipped / window_days
+- Determines NEXT order + delivery for each store based on today's date
+- Calculates cycle-based Par to cover: delivery -> next delivery window (3 or 4 days)
+- Returns:
+    - par_results_df (item-level)
+    - context_df (store-level order context)
+"""
 
-"""
-Par Engine: Centralized logic for Par Level calculations
-Calculates everything on-the-fly from NDCP invoices data.
-"""
 import pandas as pd
 import numpy as np
 import streamlit as st
 from supabase import create_client
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
+# ----------------------------
+# Supabase loader
+# ----------------------------
 def _get_supabase_client():
-    """Initialize and return Supabase client."""
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     return create_client(url, key)
 
 @st.cache_data(ttl=3600)
 def _load_ndcp_data():
-    """Load NDCP invoice data from Supabase."""
+    """
+    Load ONLY needed columns from Supabase.
+    NOTE: we still include both Order Date and Invoice Date so we can choose later.
+    """
     supabase = _get_supabase_client()
+
+    # Only the columns we need (plus item_number for proper grouping)
+    select_cols = [
+        'PC Number',
+        'Item Number',
+        'Item Description',
+        'Qty Ordered',
+        'Qty Shipped',
+        'Order Date',
+        'Invoice Date',
+        'Category Desc',
+    ]
+    select_str = ",".join([f'"{c}"' for c in select_cols])  # keep exact case/spacing
+
     all_data = []
     chunk_size = 1000
     offset = 0
+
     while True:
-        response = supabase.table("ndcp_invoices").select("*").range(offset, offset + chunk_size - 1).execute()
-        data_chunk = response.data
-        if not data_chunk:
+        resp = (
+            supabase.table("ndcp_invoices")
+            .select(select_str)
+            .range(offset, offset + chunk_size - 1)
+            .execute()
+        )
+        chunk = resp.data
+        if not chunk:
             break
-        all_data.extend(data_chunk)
+        all_data.extend(chunk)
         offset += chunk_size
-    
+
     df = pd.DataFrame(all_data)
-    
     if df.empty:
         return df
-    
-    # Convert date columns (they appear to be stored as integers in YYYYMMDD format)
-    if 'Invoice Date' in df.columns:
-        df['invoice_date'] = pd.to_datetime(df['Invoice Date'], format='%Y%m%d', errors='coerce')
-    if 'Order Date' in df.columns:
-        df['order_date'] = pd.to_datetime(df['Order Date'], format='%Y%m%d', errors='coerce')
-    
-    # Rename columns to match expected format
+
+    # ----------------------------
+    # Normalize columns / types
+    # ----------------------------
     df = df.rename(columns={
-        'PC Number': 'pc_number',
-        'Item Description': 'product_name',
-        'Qty Shipped': 'qty_shipped',
-        'Qty Ordered': 'qty_ordered',
-        'Category Desc': 'category',
-        'Division Desc': 'division',
-        'Item Number': 'item_number',
-        'Price': 'unit_price',
-        'Ext Price': 'total_price'
+        "PC Number": "pc_number",
+        "Item Number": "item_number",
+        "Item Description": "item_name",
+        "Qty Ordered": "qty_ordered",
+        "Qty Shipped": "qty_shipped",
+        "Order Date": "order_date_raw",
+        "Invoice Date": "invoice_date_raw",
+        "Category Desc": "category",
     })
-    
+
+    # Numeric safety
+    for col in ["qty_ordered", "qty_shipped", "item_number"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Date parsing helper for YYYYMMDD stored as int/string
+    def _parse_yyyymmdd(series: pd.Series) -> pd.Series:
+        s = series.copy()
+        s = s.astype("string")
+        # Remove decimals like "20250101.0" if they appear
+        s = s.str.replace(r"\.0$", "", regex=True)
+        s = s.str.zfill(8)
+        return pd.to_datetime(s, format="%Y%m%d", errors="coerce")
+
+    df["order_date"] = _parse_yyyymmdd(df["order_date_raw"]) if "order_date_raw" in df.columns else pd.NaT
+    df["invoice_date"] = _parse_yyyymmdd(df["invoice_date_raw"]) if "invoice_date_raw" in df.columns else pd.NaT
+
+    # Prefer invoice_date as "receipt/delivery-ish" timestamp for demand modeling.
+    # If invoice_date missing, fallback to order_date.
+    df["effective_date"] = df["invoice_date"].fillna(df["order_date"])
+
+    # Drop rows missing essentials
+    df = df.dropna(subset=["pc_number", "item_number", "item_name", "effective_date"])
+
+    # If qty_shipped missing, fallback to qty_ordered
+    df["qty_effective"] = df["qty_shipped"].fillna(df["qty_ordered"])
+    df["qty_effective"] = df["qty_effective"].fillna(0)
+
     return df
 
-# --- Par Calculation Methods ---
-def get_par_methods():
-    """Return available par calculation methods (hardcoded, no table needed)."""
-    methods = [
-        {
-            'method_key': 'DAILY_USAGE',
-            'method_name': 'Daily Usage Method',
-            'description': 'Par = Daily Usage Rate × Coverage Days × (1 + Safety %)'
-        },
-        {
-            'method_key': 'ORDER_FREQ',
-            'method_name': 'Order Frequency Method',
-            'description': 'Par = Average Order Qty × (1 + Safety %)'
-        },
-        {
-            'method_key': 'REORDER_POINT',
-            'method_name': 'Reorder Point Method',
-            'description': 'Par = (Daily Usage × Lead Time) + Safety Stock'
-        }
-    ]
-    return pd.DataFrame(methods)
 
-def calculate_inventory_metrics(df, window_days=90):
+# ----------------------------
+# Scheduling / cycle logic
+# ----------------------------
+# Twice-weekly stores (default):
+# - Order Tuesday -> Delivery Thursday (same week)
+# - Order Saturday -> Delivery Monday (next week)
+#
+# We treat "cycle par" as inventory needed AFTER the upcoming delivery to last until NEXT delivery.
+# - Monday delivery -> next delivery Thursday => 3 days
+# - Thursday delivery -> next delivery Monday => 4 days
+
+ORDER_WEEKDAYS = {
+    "TUE": 1,  # Monday=0, Tuesday=1
+    "SAT": 5,  # Saturday=5
+}
+
+DELIVERY_FOR_ORDER = {
+    1: 3,  # Tue(1) -> Thu(3)
+    5: 0,  # Sat(5) -> Mon(0)
+}
+
+def _to_date(d):
+    if isinstance(d, datetime):
+        return d.date()
+    if isinstance(d, date):
+        return d
+    return datetime.now().date()
+
+def _next_weekday(from_date: date, target_weekday: int) -> date:
+    """Return the next date that falls on target_weekday, including today if it matches."""
+    days_ahead = (target_weekday - from_date.weekday()) % 7
+    return from_date + timedelta(days=days_ahead)
+
+def _compute_delivery_date(order_dt: date, order_weekday: int) -> date:
     """
-    Calculate inventory metrics from NDCP invoice data.
-    Returns: DataFrame with item-level metrics per store.
+    Compute delivery date given an order date and weekday.
+    - Tue order -> Thu same week
+    - Sat order -> Mon next week
+    """
+    delivery_weekday = DELIVERY_FOR_ORDER[order_weekday]
+    if order_weekday == ORDER_WEEKDAYS["TUE"]:
+        # Tuesday -> Thursday same week (+2 days)
+        return order_dt + timedelta(days=(delivery_weekday - order_weekday))
+    else:
+        # Saturday -> Monday next week (+2 days, wraps)
+        # Sat(5) to Mon(0): +2 days
+        return order_dt + timedelta(days=2)
+
+def _next_delivery_after(delivery_dt: date) -> date:
+    """
+    Next delivery after a given delivery date based on cadence:
+    - If delivery is Monday -> next is Thursday same week (+3 days)
+    - If delivery is Thursday -> next is Monday next week (+4 days)
+    """
+    wd = delivery_dt.weekday()
+    if wd == 0:   # Monday
+        return delivery_dt + timedelta(days=3)
+    if wd == 3:   # Thursday
+        return delivery_dt + timedelta(days=4)
+
+    # If somehow not Mon/Thu, snap to next Thu if before Thu, else next Mon
+    # (keeps system robust)
+    next_thu = _next_weekday(delivery_dt, 3)
+    if next_thu == delivery_dt:
+        next_thu = delivery_dt + timedelta(days=7)
+    next_mon = _next_weekday(delivery_dt, 0)
+    if next_mon == delivery_dt:
+        next_mon = delivery_dt + timedelta(days=7)
+    return min(next_thu, next_mon)
+
+def get_order_context(today=None):
+    """
+    Compute the "next order" context based on today's date.
+    This is store-agnostic for the twice-weekly cadence.
+    """
+    today = _to_date(today)
+
+    next_tue = _next_weekday(today, ORDER_WEEKDAYS["TUE"])
+    next_sat = _next_weekday(today, ORDER_WEEKDAYS["SAT"])
+
+    # Choose earliest upcoming order date (tie-breaker: today qualifies)
+    next_order_date = min(next_tue, next_sat)
+
+    order_weekday = next_order_date.weekday()
+    delivery_date = _compute_delivery_date(next_order_date, order_weekday)
+
+    next_delivery_date = _next_delivery_after(delivery_date)
+    cycle_days = (next_delivery_date - delivery_date).days
+    cycle_days = max(cycle_days, 1)
+
+    return {
+        "today": today,
+        "next_order_date": next_order_date,
+        "next_delivery_date_for_order": delivery_date,
+        "next_delivery_after_that": next_delivery_date,
+        "cycle_days": cycle_days,
+        "cadence_type": "TWICE_WEEKLY",
+        "order_weekday": order_weekday,
+        "delivery_weekday": delivery_date.weekday(),
+    }
+
+
+# ----------------------------
+# Metrics + Par calculation
+# ----------------------------
+def calculate_inventory_metrics(df: pd.DataFrame, window_days: int = 90) -> pd.DataFrame:
+    """
+    Computes item-level metrics per store.
+    Daily usage = total_qty_effective / window_days (stable)
     """
     if df.empty:
         return pd.DataFrame()
-    
-    # Ensure required columns exist
-    required_cols = ['pc_number', 'product_name', 'qty_shipped', 'invoice_date']
-    missing = [col for col in required_cols if col not in df.columns]
-    if missing:
-        st.warning(f"Missing columns for metrics calculation: {missing}")
-        return pd.DataFrame()
-    
-    # Filter to recent data (window_days)
-    if 'invoice_date' in df.columns:
-        cutoff_date = datetime.now() - timedelta(days=window_days)
-        df = df[df['invoice_date'] >= cutoff_date]
-    
-    # Group by store and item
-    metrics = df.groupby(['pc_number', 'product_name']).agg({
-        'qty_shipped': ['mean', 'sum', 'count'],
-        'qty_ordered': 'mean',
-        'invoice_date': ['min', 'max']
-    }).reset_index()
-    
-    # Flatten column names
-    metrics.columns = ['pc_number', 'item_name', 
-                       'avg_qty_shipped', 'total_qty_shipped', 'num_orders',
-                       'avg_qty_ordered',
-                       'first_order_date', 'last_order_date']
-    
-    # Calculate days between first and last order
-    metrics['days_in_window'] = (metrics['last_order_date'] - metrics['first_order_date']).dt.days
-    metrics['days_in_window'] = metrics['days_in_window'].clip(lower=1)  # Avoid division by zero
-    
-    # Calculate daily usage rate based on total shipped divided by days in window
-    metrics['daily_usage_rate'] = metrics['total_qty_shipped'] / metrics['days_in_window']
-    
-    # Calculate average order quantity for ORDER_FREQ method
-    metrics['avg_order_qty'] = metrics['avg_qty_shipped']
-    
-    # Add total units for reference (for display compatibility)
-    metrics['total_units_sold'] = metrics['total_qty_shipped']
-    metrics['avg_units_sold'] = metrics['avg_qty_shipped']
-    metrics['num_periods'] = metrics['num_orders']
-    
-    return metrics
 
-def calculate_par_levels(method_key='DAILY_USAGE', coverage_days=14, safety_percent=20):
+    cutoff = datetime.now() - timedelta(days=window_days)
+    dfw = df[df["effective_date"] >= cutoff].copy()
+    if dfw.empty:
+        return pd.DataFrame()
+
+    # Group by store + item_number (stable key)
+    g = dfw.groupby(["pc_number", "item_number"], as_index=False).agg(
+        item_name=("item_name", "last"),
+        category=("category", "last"),
+        total_qty=("qty_effective", "sum"),
+        avg_qty=("qty_effective", "mean"),
+        num_orders=("qty_effective", "count"),
+        first_date=("effective_date", "min"),
+        last_date=("effective_date", "max"),
+    )
+
+    g["window_days"] = window_days
+    g["daily_usage_rate"] = g["total_qty"] / float(window_days)
+
+    return g
+
+
+def get_par_for_next_order(
+    pc_number: str | None = None,
+    today=None,
+    window_days: int = 90,
+    safety_percent: float = 20.0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Calculate par levels using selected method.
-    
-    Args:
-        method_key: Calculation method to use
-        coverage_days: Number of days of inventory to maintain
-        safety_percent: Safety buffer percentage
-    
     Returns:
-        DataFrame with par quantities per item × store
+      par_df: item-level rows with par_quantity for the NEXT delivery cycle
+      ctx_df: store-level order context (one row per store shown)
     """
-    df = _load_ndcp_data()
-    
-    if df.empty:
-        return pd.DataFrame()
-    
-    # Calculate base metrics
-    metrics = calculate_inventory_metrics(df)
-    
+    raw = _load_ndcp_data()
+    if raw.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    metrics = calculate_inventory_metrics(raw, window_days=window_days)
     if metrics.empty:
-        return pd.DataFrame()
-    
-    # Apply calculation method
-    if method_key == 'DAILY_USAGE':
-        metrics['par_quantity'] = (
-            metrics['daily_usage_rate'] * coverage_days * (1 + safety_percent / 100)
-        )
-    
-    elif method_key == 'ORDER_FREQ':
-        metrics['par_quantity'] = (
-            metrics['avg_order_qty'] * (1 + safety_percent / 100)
-        )
-    
-    elif method_key == 'REORDER_POINT':
-        # Assume lead time = 7 days
-        lead_time_days = 7
-        safety_stock = metrics['daily_usage_rate'] * (coverage_days * safety_percent / 100)
-        metrics['par_quantity'] = (
-            (metrics['daily_usage_rate'] * lead_time_days) + safety_stock
-        )
-    
-    # Round and ensure non-negative
-    metrics['par_quantity'] = metrics['par_quantity'].fillna(0).round(0).clip(lower=0)
-    
-    # Add metadata
-    metrics['method_key'] = method_key
-    metrics['coverage_days'] = coverage_days
-    metrics['safety_percent'] = safety_percent
-    metrics['calculated_at'] = datetime.now().isoformat()
-    
-    return metrics
+        return pd.DataFrame(), pd.DataFrame()
 
-def get_par_results(method_key='DAILY_USAGE', coverage_days=14, safety_percent=20):
-    """Calculate and return par results for selected method."""
-    return calculate_par_levels(method_key, coverage_days, safety_percent)
-
-def get_inventory_metrics(item_name=None, pc_number=None):
-    """Get detailed metrics for specific item/store."""
-    df = _load_ndcp_data()
-    metrics = calculate_inventory_metrics(df)
-    
-    if item_name:
-        metrics = metrics[metrics['item_name'] == item_name]
+    # Optionally filter store
     if pc_number:
-        metrics = metrics[metrics['pc_number'] == pc_number]
-    
-    return metrics
+        metrics = metrics[metrics["pc_number"] == pc_number].copy()
 
-# Add more functions for settings, recalculation, etc. as needed
+    if metrics.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    # Build store contexts (per store)
+    # NOTE: currently cadence is same for all stores; later we can override per PC.
+    ctx = get_order_context(today=today)
+
+    stores = sorted(metrics["pc_number"].unique().tolist())
+    ctx_rows = []
+    for store in stores:
+        row = {"pc_number": store, **ctx}
+        ctx_rows.append(row)
+
+    ctx_df = pd.DataFrame(ctx_rows)
+
+    # Join context onto metrics
+    metrics = metrics.merge(ctx_df[["pc_number", "cycle_days"]], on="pc_number", how="left")
+
+    # Par for that specific upcoming delivery cycle
+    safety_mult = 1.0 + (float(safety_percent) / 100.0)
+    metrics["par_quantity"] = np.ceil(metrics["daily_usage_rate"] * metrics["cycle_days"] * safety_mult)
+    metrics["par_quantity"] = metrics["par_quantity"].fillna(0).clip(lower=0).astype(int)
+
+    # Helpful metadata
+    metrics["safety_percent"] = float(safety_percent)
+    metrics["calculated_at"] = datetime.now().isoformat()
+
+    # Final columns
+    par_df = metrics[[
+        "pc_number",
+        "item_number",
+        "item_name",
+        "category",
+        "daily_usage_rate",
+        "cycle_days",
+        "par_quantity",
+        "total_qty",
+        "avg_qty",
+        "num_orders",
+        "window_days",
+        "safety_percent",
+        "calculated_at",
+    ]].copy()
+
+    return par_df, ctx_df

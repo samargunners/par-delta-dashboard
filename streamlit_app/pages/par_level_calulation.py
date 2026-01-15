@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from streamlit_app.dashboard import par_engine
+from dashboard import par_engine
 
 st.set_page_config(page_title="Par Level Calculation", layout="wide")
 st.title("📊 Par Level Calculation System (Cycle-Based)")

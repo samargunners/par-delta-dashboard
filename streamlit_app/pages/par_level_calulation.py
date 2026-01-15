@@ -101,13 +101,24 @@ display_cols = [
     "item_name",
     "category",
     "daily_usage_rate",
-    "cycle_days",
     "par_quantity",
+    "ly_daily_usage_rate",
+    "ly_par_quantity",
+    "cycle_days",
     "num_orders",
-    "total_qty",
+    "ly_num_orders",
 ]
 df_display = par_df[display_cols].copy()
 df_display["daily_usage_rate"] = df_display["daily_usage_rate"].round(4)
+df_display["ly_daily_usage_rate"] = df_display["ly_daily_usage_rate"].round(4)
+
+
+if not par_df.empty:
+    st.caption(
+        f"Current window: {par_df['current_window_start'].iloc[0]} → {par_df['current_window_end'].iloc[0]} | "
+        f"Last year window: {par_df['ly_window_start'].iloc[0]} → {par_df['ly_window_end'].iloc[0]}"
+    )
+
 
 st.dataframe(df_display, use_container_width=True, height=500)
 

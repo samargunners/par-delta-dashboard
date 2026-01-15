@@ -46,7 +46,7 @@ if not df_results.empty:
 
 # --- Display Results ---
 if df_results.empty:
-    st.warning("No data available for par level calculation. Please ensure variance_report_summary table has data.")
+    st.warning("No data available for par level calculation. Please ensure ndcp_invoices table has data.")
     st.stop()
 
 st.subheader("📦 Par Level Results")

@@ -93,6 +93,9 @@ else:
 # ---------------------------
 # Results table
 # ---------------------------
+# ---------------------------
+# Results table
+# ---------------------------
 st.subheader("📦 Cycle Par Results")
 
 display_cols = [
@@ -109,18 +112,35 @@ display_cols = [
     "ly_num_orders",
 ]
 
-df_display["daily_usage_rate"] = df_display["daily_usage_rate"].round(4)
-df_display["ly_daily_usage_rate"] = df_display["ly_daily_usage_rate"].round(4)
+# Only keep columns that exist (prevents crash if LY columns missing)
+display_cols_existing = [c for c in display_cols if c in par_df.columns]
+missing_cols = [c for c in display_cols if c not in par_df.columns]
+if missing_cols:
+    st.warning(f"Missing columns (likely engine not updated / not returning LY yet): {missing_cols}")
 
+df_display = par_df[display_cols_existing].copy()
 
-if not par_df.empty:
+# Round only if those columns exist
+if "daily_usage_rate" in df_display.columns:
+    df_display["daily_usage_rate"] = df_display["daily_usage_rate"].round(4)
+if "ly_daily_usage_rate" in df_display.columns:
+    df_display["ly_daily_usage_rate"] = df_display["ly_daily_usage_rate"].round(4)
+
+# Show window caption only if those fields exist
+if (
+    not par_df.empty
+    and "current_window_start" in par_df.columns
+    and "current_window_end" in par_df.columns
+    and "ly_window_start" in par_df.columns
+    and "ly_window_end" in par_df.columns
+):
     st.caption(
         f"Current window: {par_df['current_window_start'].iloc[0]} → {par_df['current_window_end'].iloc[0]} | "
         f"Last year window: {par_df['ly_window_start'].iloc[0]} → {par_df['ly_window_end'].iloc[0]}"
     )
 
-
 st.dataframe(df_display, use_container_width=True, height=500)
+
 
 # ---------------------------
 # Summary stats

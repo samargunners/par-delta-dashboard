@@ -108,7 +108,7 @@ display_cols = [
     "num_orders",
     "ly_num_orders",
 ]
-df_display = par_df[display_cols].copy()
+
 df_display["daily_usage_rate"] = df_display["daily_usage_rate"].round(4)
 df_display["ly_daily_usage_rate"] = df_display["ly_daily_usage_rate"].round(4)
 

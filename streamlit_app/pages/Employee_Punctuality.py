@@ -34,7 +34,10 @@ def load_all_rows(table):
 employee_profile_df = load_all_rows("employee_profile")
 employee_clockin_df = load_all_rows("employee_clockin")
 employee_schedules_df = load_all_rows("employee_schedules")
-stores_df = load_all_rows("stores") if "stores" in supabase.table_names() else pd.DataFrame()
+try:
+    stores_df = load_all_rows("stores")
+except Exception:
+    stores_df = pd.DataFrame()
 
 if employee_profile_df.empty or employee_clockin_df.empty or employee_schedules_df.empty:
     st.error("❌ Required employee data is not available. Please upload all necessary data.")
@@ -70,11 +73,41 @@ if date_range:
 # --- Merge and Calculate Punctuality ---
 merged_df = pd.merge(filtered_clockin, employee_schedules_df, on=["employee_id", "date"], suffixes=("_clockin", "_schedule"))
 if not merged_df.empty:
-    merged_df["scheduled_start"] = pd.to_datetime(merged_df["scheduled_start"], errors="coerce")
-    merged_df["clockin_time"] = pd.to_datetime(merged_df["clockin_time"], errors="coerce")
-    merged_df["punctuality_minutes"] = (merged_df["clockin_time"] - merged_df["scheduled_start"]).dt.total_seconds() / 60
+    # Handle column names based on what's available after merge
+    # The actual columns are: start_time (scheduled) and time_in (clock-in)
+    if "start_time" in merged_df.columns:
+        scheduled_col = "start_time"
+    elif "scheduled_start" in merged_df.columns:
+        scheduled_col = "scheduled_start"
+    elif "scheduled_start_schedule" in merged_df.columns:
+        scheduled_col = "scheduled_start_schedule"
+    elif "scheduled_time" in merged_df.columns:
+        scheduled_col = "scheduled_time"
+    elif "scheduled_time_schedule" in merged_df.columns:
+        scheduled_col = "scheduled_time_schedule"
+    else:
+        st.error(f"Cannot find scheduled start column. Available columns: {list(merged_df.columns)}")
+        st.stop()
+    
+    if "time_in" in merged_df.columns:
+        clockin_col = "time_in"
+    elif "clockin_time" in merged_df.columns:
+        clockin_col = "clockin_time"
+    elif "clockin_time_clockin" in merged_df.columns:
+        clockin_col = "clockin_time_clockin"
+    elif "clock_in_time" in merged_df.columns:
+        clockin_col = "clock_in_time"
+    elif "clock_in_time_clockin" in merged_df.columns:
+        clockin_col = "clock_in_time_clockin"
+    else:
+        st.error(f"Cannot find clock-in time column. Available columns: {list(merged_df.columns)}")
+        st.stop()
+    
+    merged_df[scheduled_col] = pd.to_datetime(merged_df[scheduled_col], errors="coerce")
+    merged_df[clockin_col] = pd.to_datetime(merged_df[clockin_col], errors="coerce")
+    merged_df["punctuality_minutes"] = (merged_df[clockin_col] - merged_df[scheduled_col]).dt.total_seconds() / 60
     st.subheader("Employee Punctuality Table")
-    st.dataframe(merged_df[["employee_id", "date", "scheduled_start", "clockin_time", "punctuality_minutes"]])
+    st.dataframe(merged_df[["employee_name", "employee_id", "date", scheduled_col, clockin_col, "punctuality_minutes"]])
     st.subheader("Punctuality Distribution")
     fig = px.histogram(merged_df, x="punctuality_minutes", nbins=30, title="Distribution of Punctuality (Minutes)")
     st.plotly_chart(fig, use_container_width=True)
